@@ -1,0 +1,185 @@
+<Window x:Class="DriverHealthChecker.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Driver Health Checker"
+        Height="680"
+        Width="1180"
+        MinHeight="560"
+        MinWidth="980"
+        WindowStartupLocation="CenterScreen"
+        Background="#F6F7FB">
+    <Window.Resources>
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Background" Value="#E9EEF9"/>
+            <Setter Property="BorderBrush" Value="#C9D3EA"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#1F2937"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Background" Value="#EEF2FF"/>
+            <Setter Property="BorderBrush" Value="#C7D2FE"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#1F2937"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Status}" Value="Требует внимания">
+                    <Setter Property="Background" Value="#FDE2E1"/>
+                    <Setter Property="BorderBrush" Value="#F5B6B3"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Стоит проверить">
+                    <Setter Property="Background" Value="#FFF4CC"/>
+                    <Setter Property="BorderBrush" Value="#F3D46E"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Status}" Value="Недавно обновлён">
+                    <Setter Property="Background" Value="#DDEBFF"/>
+                    <Setter Property="BorderBrush" Value="#A8C5F6"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="14"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="14"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="White"
+                CornerRadius="10"
+                Padding="16"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DockPanel LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left">
+                    <TextBlock Text="Driver Health Checker"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#111827"/>
+                    <TextBlock Text="Безопасная проверка важных драйверов без автоматической установки."
+                               Margin="0,4,0,0"
+                               Foreground="#4B5563"/>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Сканировать"
+                            Width="145"
+                            Height="36"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            ToolTip="Запустить обычное сканирование важных драйверов"
+                            Click="ScanButton_Click"/>
+                    <Button Content="Повторно сканировать"
+                            Width="185"
+                            Height="36"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Margin="0"
+                            ToolTip="Сравнить текущий список с предыдущим сканированием"
+                            Click="RescanButton_Click"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Border Grid.Row="2"
+                Background="White"
+                CornerRadius="10"
+                Padding="16"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <StackPanel>
+                <TextBlock Name="SummaryText"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#111827"
+                           Text="Нажми «Сканировать», чтобы получить список важных драйверов." />
+                <TextBlock Name="LastScanText"
+                           Margin="0,6,0,0"
+                           Foreground="#6B7280"
+                           Text="Последнее сканирование: ещё не выполнялось" />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="4"
+                Background="White"
+                CornerRadius="10"
+                Padding="8"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid Name="DriversGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      SelectionMode="Single"
+                      HeadersVisibility="Column"
+                      GridLinesVisibility="Horizontal"
+                      RowHeaderWidth="0"
+                      BorderThickness="0"
+                      Background="White">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="White"/>
+                        <Setter Property="Foreground" Value="#111827"/>
+                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Status}" Value="Актуален">
+                                <Setter Property="Background" Value="#DFF6DD"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Стоит проверить">
+                                <Setter Property="Background" Value="#FFF4CC"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Требует внимания">
+                                <Setter Property="Background" Value="#FDE2E1"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Недавно обновлён">
+                                <Setter Property="Background" Value="#DDEBFF"/>
+                            </DataTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="#111827"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="#F3F4F6"/>
+                        <Setter Property="Foreground" Value="#111827"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="Padding" Value="10,8"/>
+                        <Setter Property="BorderBrush" Value="#E5E7EB"/>
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Устройство" Binding="{Binding Name}" Width="2.2*"/>
+                    <DataGridTextColumn Header="Категория" Binding="{Binding CategoryDisplay}" Width="1.0*"/>
+                    <DataGridTextColumn Header="Производитель" Binding="{Binding Manufacturer}" Width="1.4*"/>
+                    <DataGridTextColumn Header="Версия" Binding="{Binding Version}" Width="1.2*"/>
+                    <DataGridTextColumn Header="Дата" Binding="{Binding Date}" Width="1.0*"/>
+                    <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="1.2*"/>
+                    <DataGridTemplateColumn Header="Действие" Width="190">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding ButtonText}"
+                                        Style="{StaticResource ActionButtonStyle}"
+                                        Tag="{Binding}"
+                                        ToolTip="{Binding ButtonTooltip}"
+                                        Click="OpenSource_Click"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</Window>
