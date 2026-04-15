@@ -112,7 +112,15 @@ StyleCopReport.xml
 *.pidb
 *.svclog
 *.scc
-
+bin/
+obj/
+publish/
+Releases/
+installer-output/
+.vs/
+*.user
+*.suo
+*.cache
 # Chutzpah Test files
 _Chutzpah*
 
