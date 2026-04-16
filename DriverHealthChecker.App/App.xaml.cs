@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 using System.Windows;
 using Velopack;
@@ -8,16 +7,20 @@ namespace DriverHealthChecker.App
 {
     public partial class App : Application
     {
-        private const string RepoUrl = "https://github.com/jlambo12/Driver-checker-";
+        private const string RepoUrl = "https://github.com/jlambo12/DriverHealthChecker";
 
-        protected override async void OnStartup(StartupEventArgs e)
+        public App()
+        {
+            VelopackApp.Build().Run();
+            InitializeComponent();
+        }
+
+        protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
-            // запуск Velopack
-            VelopackApp.Build().Run();
-
-            await CheckForUpdatesOnStartupAsync();
+            // Не блокируем запуск UI.
+            _ = CheckForUpdatesOnStartupAsync();
         }
 
         private async Task CheckForUpdatesOnStartupAsync()
@@ -34,21 +37,14 @@ namespace DriverHealthChecker.App
                 if (update == null)
                     return;
 
-                var askDownload = MessageBox.Show(
-                    $"Найдена новая версия: {update.TargetFullRelease.Version}\n\nСкачать?",
-                    "Обновление",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Information);
-
-                if (askDownload != MessageBoxResult.Yes)
-                    return;
-
+                // Тихая загрузка без popup окон.
                 await updateManager.DownloadUpdatesAsync(update);
 
                 var askRestart = MessageBox.Show(
-                    "Обновление скачано.\nПерезапустить?",
-                    "Готово",
-                    MessageBoxButton.YesNo);
+                    $"Обновление {update.TargetFullRelease.Version} уже скачано.\n\nПерезапустить приложение и установить его сейчас?",
+                    "Обновление готово",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
 
                 if (askRestart == MessageBoxResult.Yes)
                 {
@@ -57,7 +53,7 @@ namespace DriverHealthChecker.App
             }
             catch
             {
-                // тихо игнорим для MVP
+                // На старте молча пропускаем ошибки проверки и скачивания обновлений.
             }
         }
     }
