@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using System.Windows;
 using Velopack;
@@ -51,9 +52,9 @@ namespace DriverHealthChecker.App
                     updateManager.ApplyUpdatesAndRestart(update);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // На старте молча пропускаем ошибки проверки и скачивания обновлений.
+                AppLogger.Error("Ошибка проверки обновлений при старте приложения.", ex);
             }
         }
     }
