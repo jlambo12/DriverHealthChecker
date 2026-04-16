@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Management;
 using System.Windows;
-using Microsoft.Win32;
 using Button = System.Windows.Controls.Button;
 
 namespace DriverHealthChecker.App
@@ -13,6 +11,8 @@ namespace DriverHealthChecker.App
     public partial class MainWindow : Window
     {
         private Dictionary<string, DriverSnapshot> _previousSnapshot = new();
+        private readonly IDriverStatusEvaluator _statusEvaluator = new DriverStatusEvaluator();
+        private readonly IOfficialActionResolver _officialActionResolver = new OfficialActionResolver();
 
         public MainWindow()
         {
@@ -67,7 +67,7 @@ namespace DriverHealthChecker.App
                         if (!TryGetDriverCategory(name, manufacturer, out var category))
                             continue;
 
-                        var action = ResolveOfficialAction(name, manufacturer, category);
+                        var action = _officialActionResolver.Resolve(name, manufacturer, category);
 
                         allDrivers.Add(new DriverItem
                         {
@@ -83,13 +83,16 @@ namespace DriverHealthChecker.App
                             ButtonTooltip = action.Tooltip
                         });
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        AppLogger.Error("Не удалось обработать запись драйвера Win32_PnPSignedDriver.", ex);
                     }
                 }
             }
             catch (Exception ex)
             {
+                AppLogger.Error("Ошибка во время сканирования драйверов.", ex);
+
                 MessageBox.Show(
                     $"Ошибка при сканировании драйверов:\n{ex.Message}",
                     "Ошибка",
@@ -118,7 +121,7 @@ namespace DriverHealthChecker.App
                     }
                 }
 
-                driver.Status = EvaluateStatus(driver.Date);
+                driver.Status = _statusEvaluator.EvaluateStatus(driver.Date);
             }
         }
 
@@ -181,91 +184,16 @@ namespace DriverHealthChecker.App
             }
             catch (Exception ex)
             {
+                AppLogger.Error(
+                    $"Не удалось открыть официальный источник для драйвера: {driver.Name}.",
+                    ex);
+
                 MessageBox.Show(
                     $"Не удалось открыть источник:\n{ex.Message}",
                     "Ошибка",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
-        }
-
-        private OfficialAction ResolveOfficialAction(string name, string? manufacturer, string category)
-        {
-            var n = name.ToLowerInvariant();
-            var m = (manufacturer ?? string.Empty).ToLowerInvariant();
-
-            if (category == "GPU" && (n.Contains("nvidia") || n.Contains("geforce")))
-            {
-                var appPath = FindNvidiaApp();
-                if (!string.IsNullOrWhiteSpace(appPath))
-                    return OfficialAction.ForLocalApp(appPath, "NVIDIA App", "Открыть установленное приложение NVIDIA");
-
-                return OfficialAction.ForUrl(
-                    "https://www.nvidia.com/en-us/software/nvidia-app/",
-                    "Скачать NVIDIA App",
-                    "Открыть официальный сайт для установки NVIDIA App");
-            }
-
-            if (category == "GPU" && n.Contains("radeon"))
-            {
-                return OfficialAction.ForUrl(
-                    "https://www.amd.com/en/support/download/drivers.html",
-                    "Сайт AMD",
-                    "Открыть официальный сайт AMD");
-            }
-
-            if (category == "Network" && m.Contains("intel"))
-            {
-                return OfficialAction.ForUrl(
-                    "https://www.intel.com/content/www/us/en/support/detect.html",
-                    "Intel Tool",
-                    "Открыть Intel Driver & Support Assistant");
-            }
-
-            if (category == "Network")
-            {
-                return OfficialAction.ForSearch(
-                    $"{name} official driver site",
-                    "Найти драйвер",
-                    "Открыть поиск официального драйвера по модели устройства");
-            }
-
-            if (category == "Storage")
-            {
-                if (m.Contains("intel") || n.Contains("intel"))
-                {
-                    return OfficialAction.ForUrl(
-                        "https://www.intel.com/content/www/us/en/support/detect.html",
-                        "Intel Tool",
-                        "Открыть Intel Driver & Support Assistant");
-                }
-
-                return OfficialAction.ForWindowsUpdate(
-                    "Windows Update",
-                    "Открыть Windows Update",
-                    "Перейти в Windows Update для безопасной проверки системных обновлений");
-            }
-
-            if (category == "AudioMain" || category == "AudioExternal")
-            {
-                if (m.Contains("realtek") || n.Contains("realtek"))
-                {
-                    return OfficialAction.ForSearch(
-                        $"{name} official driver site",
-                        "Найти драйвер",
-                        "Открыть поиск официального драйвера Realtek");
-                }
-
-                return OfficialAction.ForMessage(
-                    "Как обновить",
-                    "Для аудио-драйверов в первой версии лучше использовать сайт производителя устройства или производителя ноутбука/материнской платы.",
-                    "Показать безопасную рекомендацию по обновлению");
-            }
-
-            return OfficialAction.ForMessage(
-                "Открыть",
-                "Для этого устройства точный официальный источник в первой версии ещё не настроен.",
-                "Показать информационное сообщение");
         }
 
         private static void OpenUrl(string url)
@@ -297,7 +225,7 @@ namespace DriverHealthChecker.App
 
         private static void OpenSearch(string query)
         {
-            var url = "https://www.google.com/search?q=" + Uri.EscapeDataString(query);
+            var url = DriverRules.GoogleSearchUrlPrefix + Uri.EscapeDataString(query);
             Process.Start(new ProcessStartInfo
             {
                 FileName = url,
@@ -368,8 +296,11 @@ namespace DriverHealthChecker.App
                                 return exe;
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        AppLogger.Error(
+                            "Ошибка при чтении записи реестра NVIDIA/GeForce Experience.",
+                            ex);
                     }
                 }
             }
@@ -435,16 +366,7 @@ namespace DriverHealthChecker.App
 
         private static bool IsBlacklisted(string n)
         {
-            var terms = new[]
-            {
-                "virtual audio", "nvidia virtual audio", "audio endpoint", "endpoint", "wan miniport",
-                "miniport", "kernel debug", "debug network", "ndis virtual", "storage spaces",
-                "pci express root port", "root port", "host bridge", "programmable interrupt",
-                "standard system", "hid-", "composite", "gpio", "spi", "i2c", "usb xhci",
-                "processor", "pci standard", "usb input", "human interface"
-            };
-
-            if (terms.Any(n.Contains))
+            if (DriverRules.BlacklistedTerms.Any(n.Contains))
                 return true;
 
             if (n.Contains("nvidia") && n.Contains("audio"))
@@ -497,13 +419,7 @@ namespace DriverHealthChecker.App
 
         private static bool IsExternalAudio(string n, string m)
         {
-            var brands = new[]
-            {
-                "focusrite", "sound blaster", "creative", "xonar", "steinberg",
-                "motu", "audient", "rme", "universal audio", "presonus", "scarlett"
-            };
-
-            if (brands.Any(n.Contains))
+            if (DriverRules.ExternalAudioBrands.Any(n.Contains))
                 return true;
 
             if (n.Contains("usb audio device"))
@@ -567,22 +483,6 @@ namespace DriverHealthChecker.App
             return group.OrderByDescending(ParseDateSafe)
                         .ThenByDescending(d => d.Version)
                         .First();
-        }
-
-        private static string EvaluateStatus(string formattedDate)
-        {
-            if (!DateTime.TryParse(formattedDate, out var driverDate))
-                return "Стоит проверить";
-
-            var ageInDays = (DateTime.Now - driverDate).TotalDays;
-
-            if (ageInDays <= 365)
-                return "Актуален";
-
-            if (ageInDays <= 1095)
-                return "Стоит проверить";
-
-            return "Требует внимания";
         }
 
         private static int GetCategoryOrder(DriverItem driver)
