@@ -5,6 +5,8 @@ using System.Linq;
 using System.Management;
 using System.Windows;
 using Button = System.Windows.Controls.Button;
+using System.IO;
+using Microsoft.Win32;
 
 namespace DriverHealthChecker.App
 {
