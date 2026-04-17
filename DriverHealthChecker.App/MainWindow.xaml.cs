@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Management;
 using System.Windows;
-using Microsoft.Win32;
 using Button = System.Windows.Controls.Button;
+using System.IO;
+using Microsoft.Win32;
 
 namespace DriverHealthChecker.App
 {
@@ -14,6 +14,7 @@ namespace DriverHealthChecker.App
     {
         private Dictionary<string, DriverSnapshot> _previousSnapshot = new();
         private readonly IDriverStatusEvaluator _statusEvaluator = new DriverStatusEvaluator();
+        private readonly IOfficialActionResolver _officialActionResolver = new OfficialActionResolver();
 
         public MainWindow()
         {
@@ -68,7 +69,7 @@ namespace DriverHealthChecker.App
                         if (!TryGetDriverCategory(name, manufacturer, out var category))
                             continue;
 
-                        var action = ResolveOfficialAction(name, manufacturer, category);
+                        var action = _officialActionResolver.Resolve(name, manufacturer, category);
 
                         allDrivers.Add(new DriverItem
                         {
@@ -195,85 +196,6 @@ namespace DriverHealthChecker.App
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
-        }
-
-        private OfficialAction ResolveOfficialAction(string name, string? manufacturer, string category)
-        {
-            var n = name.ToLowerInvariant();
-            var m = (manufacturer ?? string.Empty).ToLowerInvariant();
-
-            if (category == "GPU" && (n.Contains("nvidia") || n.Contains("geforce")))
-            {
-                var appPath = FindNvidiaApp();
-                if (!string.IsNullOrWhiteSpace(appPath))
-                    return OfficialAction.ForLocalApp(appPath, "NVIDIA App", "Открыть установленное приложение NVIDIA");
-
-                return OfficialAction.ForUrl(
-                    DriverRules.NvidiaAppUrl,
-                    "Скачать NVIDIA App",
-                    "Открыть официальный сайт для установки NVIDIA App");
-            }
-
-            if (category == "GPU" && n.Contains("radeon"))
-            {
-                return OfficialAction.ForUrl(
-                    DriverRules.AmdDriversUrl,
-                    "Сайт AMD",
-                    "Открыть официальный сайт AMD");
-            }
-
-            if (category == "Network" && m.Contains("intel"))
-            {
-                return OfficialAction.ForUrl(
-                    DriverRules.IntelSupportAssistantUrl,
-                    "Intel Tool",
-                    "Открыть Intel Driver & Support Assistant");
-            }
-
-            if (category == "Network")
-            {
-                return OfficialAction.ForSearch(
-                    name + DriverRules.OfficialDriverSiteSearchSuffix,
-                    "Найти драйвер",
-                    "Открыть поиск официального драйвера по модели устройства");
-            }
-
-            if (category == "Storage")
-            {
-                if (m.Contains("intel") || n.Contains("intel"))
-                {
-                    return OfficialAction.ForUrl(
-                        DriverRules.IntelSupportAssistantUrl,
-                        "Intel Tool",
-                        "Открыть Intel Driver & Support Assistant");
-                }
-
-                return OfficialAction.ForWindowsUpdate(
-                    "Windows Update",
-                    "Открыть Windows Update",
-                    "Перейти в Windows Update для безопасной проверки системных обновлений");
-            }
-
-            if (category == "AudioMain" || category == "AudioExternal")
-            {
-                if (m.Contains("realtek") || n.Contains("realtek"))
-                {
-                    return OfficialAction.ForSearch(
-                        name + DriverRules.OfficialDriverSiteSearchSuffix,
-                        "Найти драйвер",
-                        "Открыть поиск официального драйвера Realtek");
-                }
-
-                return OfficialAction.ForMessage(
-                    "Как обновить",
-                    "Для аудио-драйверов в первой версии лучше использовать сайт производителя устройства или производителя ноутбука/материнской платы.",
-                    "Показать безопасную рекомендацию по обновлению");
-            }
-
-            return OfficialAction.ForMessage(
-                "Открыть",
-                "Для этого устройства точный официальный источник в первой версии ещё не настроен.",
-                "Показать информационное сообщение");
         }
 
         private static void OpenUrl(string url)
