@@ -51,6 +51,8 @@
             <RowDefinition Height="14"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="14"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="14"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -72,13 +74,15 @@
                 </StackPanel>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Сканировать"
+                    <Button Name="ScanButton"
+                            Content="Сканировать"
                             Width="145"
                             Height="36"
                             Style="{StaticResource PrimaryButtonStyle}"
                             ToolTip="Запустить обычное сканирование важных драйверов"
                             Click="ScanButton_Click"/>
-                    <Button Content="Повторно сканировать"
+                    <Button Name="RescanButton"
+                            Content="Повторно сканировать"
                             Width="185"
                             Height="36"
                             Style="{StaticResource PrimaryButtonStyle}"
@@ -105,10 +109,71 @@
                            Margin="0,6,0,0"
                            Foreground="#6B7280"
                            Text="Последнее сканирование: ещё не выполнялось" />
+                <TextBlock Name="OfficialSourceNoteText"
+                           Margin="0,6,0,0"
+                           Foreground="#6B7280"
+                           Text="Рекомендации ведут только на официальные источники. Приложение не устанавливает драйверы автоматически." />
             </StackPanel>
         </Border>
 
         <Border Grid.Row="4"
+                Background="White"
+                CornerRadius="10"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DockPanel LastChildFill="False">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Фильтры:"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               Margin="0,0,10,0"/>
+
+                    <TextBlock Text="Категория"
+                               VerticalAlignment="Center"
+                               Foreground="#4B5563"/>
+                    <ComboBox Name="CategoryFilterCombo"
+                              Width="170"
+                              Margin="8,0,16,0"
+                              SelectionChanged="CategoryFilterCombo_SelectionChanged"/>
+
+                    <TextBlock Text="Статус"
+                               VerticalAlignment="Center"
+                               Foreground="#4B5563"/>
+                    <ComboBox Name="StatusFilterCombo"
+                              Width="180"
+                              Margin="8,0,16,0"
+                              SelectionChanged="StatusFilterCombo_SelectionChanged"/>
+
+                    <TextBlock Text="Поиск"
+                               VerticalAlignment="Center"
+                               Foreground="#4B5563"/>
+                    <TextBox Name="SearchTextBox"
+                             Width="240"
+                             Margin="8,0,0,0"
+                             VerticalContentAlignment="Center"
+                             TextChanged="SearchTextBox_TextChanged"/>
+
+                    <CheckBox Name="ShowHiddenCheckBox"
+                              Content="Показать скрытые"
+                              Margin="16,0,0,0"
+                              VerticalAlignment="Center"
+                              Click="ShowHiddenCheckBox_Click"/>
+                </StackPanel>
+
+                <Button Name="ResetFiltersButton"
+                        Content="Сбросить фильтры"
+                        DockPanel.Dock="Right"
+                        Width="150"
+                        Height="32"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Margin="10,0,0,0"
+                        Click="ResetFiltersButton_Click"/>
+            </DockPanel>
+        </Border>
+
+        <Border Grid.Row="6"
                 Background="White"
                 CornerRadius="10"
                 Padding="8"
@@ -161,13 +226,14 @@
                 </DataGrid.ColumnHeaderStyle>
 
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Устройство" Binding="{Binding Name}" Width="2.2*"/>
-                    <DataGridTextColumn Header="Категория" Binding="{Binding CategoryDisplay}" Width="1.0*"/>
-                    <DataGridTextColumn Header="Производитель" Binding="{Binding Manufacturer}" Width="1.4*"/>
-                    <DataGridTextColumn Header="Версия" Binding="{Binding Version}" Width="1.2*"/>
-                    <DataGridTextColumn Header="Дата" Binding="{Binding Date}" Width="1.0*"/>
-                    <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="1.2*"/>
-                    <DataGridTemplateColumn Header="Действие" Width="190">
+                    <DataGridTextColumn Header="Устройство" Binding="{Binding Name}" Width="2.0*"/>
+                    <DataGridTextColumn Header="Категория" Binding="{Binding CategoryDisplay}" Width="0.9*"/>
+                    <DataGridTextColumn Header="Производитель" Binding="{Binding Manufacturer}" Width="1.2*"/>
+                    <DataGridTextColumn Header="Версия" Binding="{Binding Version}" Width="1.0*"/>
+                    <DataGridTextColumn Header="Дата" Binding="{Binding Date}" Width="0.9*"/>
+                    <DataGridTextColumn Header="Статус" Binding="{Binding Status}" Width="1.0*"/>
+                    <DataGridTextColumn Header="Почему в списке" Binding="{Binding DetectionReason}" Width="2.3*"/>
+                    <DataGridTemplateColumn Header="Действие" Width="180">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Button Content="{Binding ButtonText}"
