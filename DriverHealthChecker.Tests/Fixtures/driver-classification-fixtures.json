@@ -1,0 +1,27 @@
+[
+  { "profile": "intel_nvidia", "name": "NVIDIA GeForce RTX 4060", "manufacturer": "NVIDIA", "expectedCategory": "GPU", "shouldClassify": true },
+  { "profile": "amd_amd", "name": "AMD Radeon RX 7900 XT", "manufacturer": "Advanced Micro Devices", "expectedCategory": "GPU", "shouldClassify": true },
+  { "profile": "intel_igpu", "name": "Intel(R) UHD Graphics 770", "manufacturer": "Intel", "expectedCategory": "GPU", "shouldClassify": true },
+
+  { "profile": "intel_nvidia", "name": "Intel(R) Wi-Fi 6E AX211", "manufacturer": "Intel", "expectedCategory": "Network", "shouldClassify": true },
+  { "profile": "amd_amd", "name": "Realtek Gaming 2.5GbE Family Controller", "manufacturer": "Realtek", "expectedCategory": "Network", "shouldClassify": true },
+  { "profile": "external_audio_pc", "name": "Killer Wi-Fi 7 BE1750", "manufacturer": "Killer", "expectedCategory": "Network", "shouldClassify": true },
+
+  { "profile": "intel_nvidia", "name": "Samsung NVMe Controller", "manufacturer": "Samsung", "expectedCategory": "Storage", "shouldClassify": true },
+  { "profile": "intel_nvidia", "name": "Intel(R) RST VMD Controller", "manufacturer": "Intel", "expectedCategory": "Storage", "shouldClassify": true },
+  { "profile": "amd_amd", "name": "Standard SATA AHCI Controller", "manufacturer": "Microsoft", "expectedCategory": "Storage", "shouldClassify": true },
+
+  { "profile": "oem_laptop", "name": "Realtek(R) Audio", "manufacturer": "Realtek", "expectedCategory": "AudioMain", "shouldClassify": true },
+  { "profile": "intel_igpu", "name": "Intel Smart Sound Technology for USB Audio", "manufacturer": "Intel", "expectedCategory": "AudioMain", "shouldClassify": true },
+  { "profile": "oem_laptop", "name": "Conexant HD Audio", "manufacturer": "Conexant", "expectedCategory": "AudioMain", "shouldClassify": true },
+
+  { "profile": "external_audio_pc", "name": "Focusrite USB Audio", "manufacturer": "Focusrite", "expectedCategory": "AudioExternal", "shouldClassify": true },
+  { "profile": "external_audio_pc", "name": "Creative Sound BlasterX G6", "manufacturer": "Creative", "expectedCategory": "AudioExternal", "shouldClassify": true },
+
+  { "profile": "intel_nvidia", "name": "NVIDIA Virtual Audio Device", "manufacturer": "NVIDIA", "expectedCategory": "", "shouldClassify": false },
+  { "profile": "intel_nvidia", "name": "WAN Miniport (SSTP)", "manufacturer": "Microsoft", "expectedCategory": "", "shouldClassify": false },
+  { "profile": "amd_amd", "name": "PCI Express Root Port", "manufacturer": "Intel", "expectedCategory": "", "shouldClassify": false },
+  { "profile": "external_audio_pc", "name": "USB Input Device", "manufacturer": "Microsoft", "expectedCategory": "", "shouldClassify": false },
+
+  { "profile": "oem_laptop", "name": "Unknown Diagnostic Device", "manufacturer": "Contoso", "expectedCategory": "", "shouldClassify": false }
+]

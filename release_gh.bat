@@ -17,7 +17,7 @@ if not exist ".\%CSPROJ%" (
 set "VERSION=%~1"
 if "%VERSION%"=="" (
     echo [ERROR] Версия не передана.
-    echo Использование: .\build_velopack_release.bat ^<version^>
+    echo Использование: .\release_gh.bat ^<version^>
     exit /b 1
 )
 
@@ -38,34 +38,33 @@ if /I not "%VERSION%"=="%CSPROJ_VERSION%" (
     exit /b 1
 )
 
+if "%GITHUB_TOKEN%"=="" (
+    echo [ERROR] Переменная GITHUB_TOKEN не задана.
+    echo         Пример: set GITHUB_TOKEN=ghp_xxx
+    exit /b 1
+)
+
 echo ===============================
-echo Driver Health Checker - Velopack Build
+echo Driver Health Checker - Full GitHub Release
 echo Version: %VERSION%
 echo ===============================
 
-dotnet tool update -g vpk --version 0.0.1298
+echo [STEP 1/2] Сборка Velopack пакета...
+call .\build_velopack_release.bat %VERSION%
 if errorlevel 1 (
-    dotnet tool install -g vpk --version 0.0.1298
-)
-
-if errorlevel 1 (
-    echo [ERROR] Не удалось установить или обновить vpk.
+    echo [ERROR] Build этап завершился с ошибкой.
     exit /b 1
 )
 
-dotnet publish .\DriverHealthChecker.App\DriverHealthChecker.App.csproj -c Release -r win-x64 --self-contained true -p:Version=%VERSION% -o .\publish
+echo [STEP 2/2] Публикация/обновление GitHub Release...
+call .\upload_velopack_github.bat %VERSION%
 if errorlevel 1 (
-    echo [ERROR] Ошибка на этапе dotnet publish.
+    echo [ERROR] Upload этап завершился с ошибкой.
     exit /b 1
 )
 
-vpk pack --packId jlambo12.DriverHealthChecker --packVersion %VERSION% --packDir .\publish --mainExe DriverHealthChecker.App.exe --packAuthors jlambo12 --packTitle "Driver Health Checker" --icon .\app.ico
-if errorlevel 1 (
-    echo [ERROR] Ошибка на этапе vpk pack.
-    exit /b 1
-)
+echo [OK] Релиз полностью завершен: v%VERSION%
 
-echo [OK] Velopack build завершен успешно.
-echo [OK] Папка релиза: .\Releases
+echo [OK] Основной сценарий: .\release_gh.bat ^<version^>
 
 exit /b 0
