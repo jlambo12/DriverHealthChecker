@@ -266,7 +266,7 @@ namespace DriverHealthChecker.App
 
             var previousCategory = CategoryFilterCombo.SelectedItem?.ToString();
             CategoryFilterCombo.ItemsSource = categoryItems;
-            CategoryFilterCombo.SelectedItem = categoryItems.Contains(previousCategory) ? previousCategory : "Все";
+            CategoryFilterCombo.SelectedItem = previousCategory != null && categoryItems.Contains(previousCategory) ? previousCategory : "Все";
         }
 
         private void ApplyGridFilters()

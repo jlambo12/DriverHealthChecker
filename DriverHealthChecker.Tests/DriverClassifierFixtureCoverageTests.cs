@@ -9,6 +9,11 @@ namespace DriverHealthChecker.Tests;
 
 public class DriverClassifierFixtureCoverageTests
 {
+    private static readonly JsonSerializerOptions FixtureJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     [Fact]
     public void Fixtures_ShouldCoverRequiredHardwareProfiles()
     {
@@ -42,6 +47,6 @@ public class DriverClassifierFixtureCoverageTests
     {
         var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "driver-classification-fixtures.json");
         var json = File.ReadAllText(fixturePath);
-        return JsonSerializer.Deserialize<List<DriverFixtureCase>>(json) ?? new List<DriverFixtureCase>();
+        return JsonSerializer.Deserialize<List<DriverFixtureCase>>(json, FixtureJsonOptions) ?? new List<DriverFixtureCase>();
     }
 }

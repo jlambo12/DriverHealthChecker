@@ -11,6 +11,10 @@ namespace DriverHealthChecker.Tests;
 public class DriverClassifierKpiTests
 {
     private readonly IDriverClassifier _classifier = new DriverClassifier();
+    private static readonly JsonSerializerOptions FixtureJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     [Fact]
     public void FixtureKpi_ByCategory_ShouldMeetRoadmapThresholds()
@@ -52,6 +56,6 @@ public class DriverClassifierKpiTests
     {
         var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "driver-classification-fixtures.json");
         var json = File.ReadAllText(fixturePath);
-        return JsonSerializer.Deserialize<List<DriverFixtureCase>>(json) ?? new List<DriverFixtureCase>();
+        return JsonSerializer.Deserialize<List<DriverFixtureCase>>(json, FixtureJsonOptions) ?? new List<DriverFixtureCase>();
     }
 }

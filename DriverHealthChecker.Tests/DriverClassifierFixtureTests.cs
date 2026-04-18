@@ -11,6 +11,10 @@ namespace DriverHealthChecker.Tests;
 public class DriverClassifierFixtureTests
 {
     private readonly IDriverClassifier _classifier = new DriverClassifier();
+    private static readonly JsonSerializerOptions FixtureJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     public static TheoryData<DriverFixtureCase> Cases
     {
@@ -18,7 +22,7 @@ public class DriverClassifierFixtureTests
         {
             var fixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "driver-classification-fixtures.json");
             var json = File.ReadAllText(fixturePath);
-            var parsed = JsonSerializer.Deserialize<List<DriverFixtureCase>>(json) ?? new List<DriverFixtureCase>();
+            var parsed = JsonSerializer.Deserialize<List<DriverFixtureCase>>(json, FixtureJsonOptions) ?? new List<DriverFixtureCase>();
 
             var data = new TheoryData<DriverFixtureCase>();
             foreach (var item in parsed)
