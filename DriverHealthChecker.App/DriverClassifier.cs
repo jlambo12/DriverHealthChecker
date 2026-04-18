@@ -39,15 +39,15 @@ internal sealed class DriverClassifier : IDriverClassifier
             return true;
         }
 
-        if (IsExternalAudio(n, m, out reason))
-        {
-            category = "AudioExternal";
-            return true;
-        }
-
         if (IsMainAudio(n, m, out reason))
         {
             category = "AudioMain";
+            return true;
+        }
+
+        if (IsExternalAudio(n, m, out reason))
+        {
+            category = "AudioExternal";
             return true;
         }
 
