@@ -1,0 +1,30 @@
+name: dotnet-ci
+
+on:
+  push:
+    branches:
+      - main
+      - refactor/**
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore DriverHealthChecker.sln
+
+      - name: Build
+        run: dotnet build DriverHealthChecker.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test DriverHealthChecker.Tests/DriverHealthChecker.Tests.csproj --configuration Release --no-build

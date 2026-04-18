@@ -7,15 +7,16 @@ namespace DriverHealthChecker.App;
 
 internal interface IOfficialActionResolver
 {
-    OfficialAction Resolve(string name, string? manufacturer, string category);
+    OfficialAction Resolve(string name, string? manufacturer, string category, string? oemManufacturer = null, bool isLaptop = false);
 }
 
 internal sealed class OfficialActionResolver : IOfficialActionResolver
 {
-    public OfficialAction Resolve(string name, string? manufacturer, string category)
+    public OfficialAction Resolve(string name, string? manufacturer, string category, string? oemManufacturer = null, bool isLaptop = false)
     {
         var n = name.ToLowerInvariant();
         var m = (manufacturer ?? string.Empty).ToLowerInvariant();
+        var oem = (oemManufacturer ?? string.Empty).ToLowerInvariant();
 
         if (category == "GPU" && (n.Contains("nvidia") || n.Contains("geforce")))
         {
@@ -39,56 +40,103 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
 
         if (category == "Network" && m.Contains("intel"))
         {
+            if (n.Contains("bluetooth"))
+                return OfficialAction.ForUrl(DriverRules.IntelBluetoothDriversUrl, "Intel Bluetooth", "Открыть официальный драйвер Intel Bluetooth");
+
+            if (n.Contains("wi-fi") || n.Contains("wireless") || n.Contains("wlan"))
+                return OfficialAction.ForUrl(DriverRules.IntelWirelessDriversUrl, "Intel Wi-Fi", "Открыть официальный драйвер Intel Wi-Fi");
+
             return OfficialAction.ForUrl(
                 DriverRules.IntelSupportAssistantUrl,
                 "Intel Tool",
                 "Открыть Intel Driver & Support Assistant");
         }
 
-        if (category == "Network")
+        if (category == "Network" && (m.Contains("realtek") || n.Contains("realtek")))
         {
-            return OfficialAction.ForSearch(
-                name + DriverRules.OfficialDriverSiteSearchSuffix,
-                "Найти драйвер",
-                "Открыть поиск официального драйвера по модели устройства");
+            return OfficialAction.ForUrl(
+                DriverRules.RealtekDownloadsUrl,
+                "Realtek Downloads",
+                "Открыть официальный центр загрузок Realtek");
         }
 
         if (category == "Storage")
         {
-            if (m.Contains("intel") || n.Contains("intel"))
+            if (m.Contains("intel") || n.Contains("intel") || n.Contains("rst") || n.Contains("vmd"))
             {
                 return OfficialAction.ForUrl(
-                    DriverRules.IntelSupportAssistantUrl,
-                    "Intel Tool",
-                    "Открыть Intel Driver & Support Assistant");
+                    DriverRules.IntelRstDriversUrl,
+                    "Intel RST",
+                    "Открыть официальный драйвер Intel Rapid Storage Technology");
             }
 
-            return OfficialAction.ForWindowsUpdate(
-                "Windows Update",
-                "Открыть Windows Update",
-                "Перейти в Windows Update для безопасной проверки системных обновлений");
+            if (IsOemLaptopAudioOrSupportComponent(n, oem, isLaptop))
+            {
+                return OfficialAction.ForUrl(
+                    DriverRules.HuaweiPcManagerUrl,
+                    "Huawei PC Manager",
+                    "Для OEM-ноутбука безопаснее использовать Huawei PC Manager");
+            }
+
+            return OfficialAction.ForMessage(
+                "OEM/вендор",
+                "Для этого контроллера надёжнее использовать поддержку OEM устройства или официальную страницу производителя контроллера.",
+                "Показать безопасную рекомендацию без универсального перенаправления");
         }
 
         if (category == "AudioMain" || category == "AudioExternal")
         {
+            if (IsOemLaptopAudioOrSupportComponent(n, oem, isLaptop))
+            {
+                return OfficialAction.ForUrl(
+                    DriverRules.HuaweiPcManagerUrl,
+                    "Huawei PC Manager",
+                    "Для OEM-зависимого аудио используйте инструмент производителя ноутбука");
+            }
+
             if (m.Contains("realtek") || n.Contains("realtek"))
             {
-                return OfficialAction.ForSearch(
-                    name + DriverRules.OfficialDriverSiteSearchSuffix,
-                    "Найти драйвер",
-                    "Открыть поиск официального драйвера Realtek");
+                return OfficialAction.ForUrl(
+                    DriverRules.RealtekDownloadsUrl,
+                    "Realtek Downloads",
+                    "Открыть официальный центр загрузок Realtek");
             }
 
             return OfficialAction.ForMessage(
-                "Как обновить",
-                "Для аудио-драйверов в первой версии лучше использовать сайт производителя устройства или производителя ноутбука/материнской платы.",
+                "OEM/вендор",
+                "Для аудио-драйверов используйте OEM-поддержку устройства или официальный сайт производителя аудиочипа.",
                 "Показать безопасную рекомендацию по обновлению");
         }
 
+        if (category == "DeviceRecommendation")
+        {
+            if (oem.Contains("huawei") || oem.Contains("honor"))
+            {
+                return OfficialAction.ForUrl(DriverRules.HuaweiPcManagerUrl, "Huawei PC Manager", "Открыть официальный инструмент Huawei");
+            }
+        }
+
+        AppLogger.Info($"Official action fallback used. category={category}, name={name}, manufacturer={manufacturer ?? "-"}.");
         return OfficialAction.ForMessage(
-            "Открыть",
-            "Для этого устройства точный официальный источник в первой версии ещё не настроен.",
-            "Показать информационное сообщение");
+            "OEM/вендор",
+            "Для этого устройства точный официальный источник пока не определён. Используйте OEM-поддержку устройства или сайт производителя устройства.",
+            "Показать безопасную рекомендацию");
+    }
+
+    private static bool IsOemLaptopAudioOrSupportComponent(string name, string oemManufacturer, bool isLaptop)
+    {
+        if (!isLaptop)
+            return false;
+
+        var isHuawei = oemManufacturer.Contains("huawei") || oemManufacturer.Contains("honor");
+        if (!isHuawei)
+            return false;
+
+        return name.Contains("huawei audio service")
+               || name.Contains("hwve")
+               || name.Contains("nahimic")
+               || name.Contains("elan")
+               || name.Contains("smbus");
     }
 
     private static string? FindNvidiaApp()

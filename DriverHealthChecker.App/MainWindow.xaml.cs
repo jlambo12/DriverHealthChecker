@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Management;
 using System.Threading.Tasks;
 using System.Windows;
 using Button = System.Windows.Controls.Button;
@@ -14,7 +13,6 @@ namespace DriverHealthChecker.App
         private Dictionary<string, DriverSnapshot> _previousSnapshot = new();
         private List<DriverItem> _currentDrivers = new();
         private List<DriverItem> _hiddenDrivers = new();
-        private readonly IDriverStatusEvaluator _statusEvaluator = new DriverStatusEvaluator();
         private readonly IDriverClassifier _driverClassifier = new DriverClassifier();
         private readonly IOfficialActionResolver _officialActionResolver = new OfficialActionResolver();
         private readonly IDeviceProfileDetector _deviceProfileDetector = new DeviceProfileDetector();
@@ -23,11 +21,16 @@ namespace DriverHealthChecker.App
         private readonly IOnlineActionGuard _onlineActionGuard = new OnlineActionGuard(new NetworkStatusProvider());
         private readonly IOnlineTargetValidator _onlineTargetValidator = new OnlineTargetValidator();
         private readonly ILocalAppValidator _localAppValidator = new LocalAppValidator();
+        private readonly IDriverSelectionService _driverSelectionService = new DriverSelectionService(new DriverVersionComparer());
+        private readonly IDriverComparisonService _driverComparisonService = new DriverComparisonService(new DriverStatusEvaluator());
+        private readonly IWmiDriverScanner _wmiDriverScanner = new WmiDriverScanner();
+        private readonly IDriverScanMapper _driverScanMapper;
         private bool _isScanning;
         private string _lastSummaryBaseText = "Нажми «Сканировать», чтобы получить список важных драйверов.";
 
         public MainWindow()
         {
+            _driverScanMapper = new DriverScanMapper(_driverClassifier, _officialActionResolver, _driverSelectionService);
             InitializeComponent();
             InitializeFilters();
         }
@@ -49,12 +52,14 @@ namespace DriverHealthChecker.App
 
             _isScanning = true;
             SetUiBusy(true);
+            AppLogger.Info($"Scan started. isRescan={isRescan}.");
 
             try
             {
-                var currentDrivers = await Task.Run(ScanImportantDrivers);
+                var profile = _deviceProfileDetector.TryGetDeviceProfile();
+                var currentDrivers = await Task.Run(() => ScanImportantDrivers(profile));
 
-                ApplyComparison(currentDrivers, isRescan);
+                _driverComparisonService.ApplyComparison(currentDrivers, isRescan, _previousSnapshot);
 
                 _currentDrivers = currentDrivers
                     .OrderBy(GetCategoryOrder)
@@ -64,12 +69,12 @@ namespace DriverHealthChecker.App
                 UpdateFilterItems();
                 ApplyGridFilters();
 
-                var profile = _deviceProfileDetector.TryGetDeviceProfile();
                 var deviceKind = profile == null ? "Unknown" : (profile.IsLaptop ? "Laptop" : "Desktop");
                 var reportPath = _scanReportWriter.TryWrite(_currentDrivers, isRescan, deviceKind);
+                AppLogger.Info($"Scan completed. drivers={_currentDrivers.Count}, deviceKind={deviceKind}, reportCreated={!string.IsNullOrWhiteSpace(reportPath)}.");
 
                 UpdateSummary(currentDrivers, isRescan, reportPath);
-                SaveSnapshot(currentDrivers);
+                _previousSnapshot = _driverComparisonService.BuildSnapshot(currentDrivers);
             }
             catch (Exception ex)
             {
@@ -88,75 +93,22 @@ namespace DriverHealthChecker.App
             }
         }
 
-        private List<DriverItem> ScanImportantDrivers()
+        private List<DriverItem> ScanImportantDrivers(DeviceProfile? profile)
         {
-            var allDrivers = new List<DriverItem>();
-            var hiddenDrivers = new List<DriverItem>();
-
             try
             {
-                var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPSignedDriver");
+                var records = _wmiDriverScanner.ScanSignedDrivers();
+                AppLogger.Info($"WMI records collected: {records.Count}.");
 
-                foreach (ManagementObject obj in searcher.Get())
-                {
-                    try
-                    {
-                        var name = obj["DeviceName"]?.ToString();
-                        var manufacturer = obj["Manufacturer"]?.ToString();
-                        var version = obj["DriverVersion"]?.ToString();
-                        var rawDate = obj["DriverDate"]?.ToString();
+                var buildResult = _driverScanMapper.Build(records, profile);
+                var selected = buildResult.SelectedDrivers;
 
-                        if (string.IsNullOrWhiteSpace(name))
-                            continue;
+                var deviceRecommendation = BuildDeviceRecommendationItem();
+                if (deviceRecommendation != null)
+                    selected.Add(deviceRecommendation);
 
-                        if (!_driverClassifier.TryClassify(name, manufacturer, out var category, out var reason))
-                        {
-                            if (!string.IsNullOrWhiteSpace(reason))
-                            {
-                                hiddenDrivers.Add(new DriverItem
-                                {
-                                    Name = CleanDeviceName(name),
-                                    Manufacturer = CleanManufacturer(manufacturer),
-                                    Version = string.IsNullOrWhiteSpace(version) ? "-" : version,
-                                    Date = FormatDate(rawDate),
-                                    Category = "HiddenSystem",
-                                    CategoryDisplay = GetCategoryDisplay("HiddenSystem"),
-                                    Status = "Скрыт",
-                                    DetectionReason = reason,
-                                    OfficialAction = OfficialAction.ForMessage(
-                                        "Почему скрыто",
-                                        "Это устройство скрыто из основного списка, чтобы уменьшить шум.",
-                                        reason),
-                                    ButtonText = "Почему скрыто",
-                                    ButtonTooltip = reason
-                                });
-                            }
-
-                            continue;
-                        }
-
-                        var action = _officialActionResolver.Resolve(name, manufacturer, category);
-
-                        allDrivers.Add(new DriverItem
-                        {
-                            Name = CleanDeviceName(name),
-                            Manufacturer = CleanManufacturer(manufacturer),
-                            Version = string.IsNullOrWhiteSpace(version) ? "-" : version,
-                            Date = FormatDate(rawDate),
-                            Category = category,
-                            CategoryDisplay = GetCategoryDisplay(category),
-                            Status = "Стоит проверить",
-                            OfficialAction = action,
-                            ButtonText = action.ButtonText,
-                            DetectionReason = reason,
-                            ButtonTooltip = $"{action.Tooltip} · Причина: {reason}"
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        AppLogger.Error("Не удалось обработать запись драйвера Win32_PnPSignedDriver.", ex);
-                    }
-                }
+                _hiddenDrivers = buildResult.HiddenDrivers;
+                return selected;
             }
             catch (Exception ex)
             {
@@ -167,58 +119,9 @@ namespace DriverHealthChecker.App
                     "Ошибка",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+
+                return new List<DriverItem>();
             }
-
-            var selected = SelectBestDrivers(allDrivers);
-            var deviceRecommendation = BuildDeviceRecommendationItem();
-            if (deviceRecommendation != null)
-                selected.Add(deviceRecommendation);
-
-            _hiddenDrivers = hiddenDrivers
-                .OrderBy(d => d.Name)
-                .ToList();
-
-            return selected;
-        }
-
-        private void ApplyComparison(List<DriverItem> currentDrivers, bool isRescan)
-        {
-            foreach (var driver in currentDrivers)
-            {
-                var key = BuildKey(driver);
-
-                if (isRescan && _previousSnapshot.TryGetValue(key, out var previous))
-                {
-                    var versionChanged = !string.Equals(previous.Version, driver.Version, StringComparison.OrdinalIgnoreCase);
-                    var dateChanged = !string.Equals(previous.Date, driver.Date, StringComparison.OrdinalIgnoreCase);
-
-                    if (versionChanged || dateChanged)
-                    {
-                        driver.Status = "Недавно обновлён";
-                        continue;
-                    }
-                }
-
-                if (driver.Category == "DeviceRecommendation")
-                {
-                    driver.Status = "Рекомендация";
-                    continue;
-                }
-
-                driver.Status = _statusEvaluator.EvaluateStatus(driver.Date);
-            }
-        }
-
-        private void SaveSnapshot(List<DriverItem> currentDrivers)
-        {
-            _previousSnapshot = currentDrivers.ToDictionary(
-                BuildKey,
-                d => new DriverSnapshot
-                {
-                    Version = d.Version,
-                    Date = d.Date
-                },
-                StringComparer.OrdinalIgnoreCase);
         }
 
         private void UpdateSummary(List<DriverItem> drivers, bool isRescan, string? reportPath)
@@ -298,6 +201,7 @@ namespace DriverHealthChecker.App
             var visibleItems = query.ToList();
             DriversGrid.ItemsSource = visibleItems;
             UpdateSummaryVisibleHint(visibleItems.Count);
+            AppLogger.Info($"Filters applied. category={selectedCategory}, status={selectedStatus}, searchLength={search.Length}, showHidden={ShowHiddenCheckBox.IsChecked == true}, visible={visibleItems.Count}.");
         }
 
         private void CategoryFilterCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -346,6 +250,7 @@ namespace DriverHealthChecker.App
 
             try
             {
+                AppLogger.Info($"Action requested. device={driver.Name}, category={driver.Category}, kind={driver.OfficialAction.Kind}.");
                 switch (driver.OfficialAction.Kind)
                 {
                     case OfficialActionKind.Url:
@@ -361,6 +266,7 @@ namespace DriverHealthChecker.App
                             return;
                         }
                         OpenUrl(driver.OfficialAction.Target);
+                        AppLogger.Info($"Official URL opened. device={driver.Name}, target={driver.OfficialAction.Target}.");
                         break;
                     case OfficialActionKind.LocalApp:
                         if (!_localAppValidator.Exists(driver.OfficialAction.Target))
@@ -373,25 +279,14 @@ namespace DriverHealthChecker.App
                             return;
                         }
                         OpenLocalApp(driver.OfficialAction.Target);
+                        AppLogger.Info($"Local app opened. device={driver.Name}, target={driver.OfficialAction.Target}.");
                         break;
                     case OfficialActionKind.WindowsUpdate:
                         OpenWindowsUpdate();
-                        break;
-                    case OfficialActionKind.Search:
-                        if (!TryPassOnlineActionGuard())
-                            return;
-                        if (string.IsNullOrWhiteSpace(driver.OfficialAction.Target))
-                        {
-                            MessageBox.Show(
-                                "Строка поиска для этого действия не задана.",
-                                "Некорректное действие",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Warning);
-                            return;
-                        }
-                        OpenSearch(driver.OfficialAction.Target);
+                        AppLogger.Info($"Windows Update opened for device={driver.Name}.");
                         break;
                     default:
+                        AppLogger.Info($"Informational fallback shown. device={driver.Name}, message={driver.OfficialAction.Message}.");
                         MessageBox.Show(
                             driver.OfficialAction.Message,
                             "Официальный источник",
@@ -453,68 +348,6 @@ namespace DriverHealthChecker.App
                 MessageBoxImage.Warning);
 
             return false;
-        }
-
-        private static void OpenSearch(string query)
-        {
-            var url = DriverRules.GoogleSearchUrlPrefix + Uri.EscapeDataString(query);
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = url,
-                UseShellExecute = true
-            });
-        }
-
-        private static List<DriverItem> SelectBestDrivers(List<DriverItem> drivers)
-        {
-            var result = new List<DriverItem>();
-
-            result.AddRange(
-                drivers.Where(d => d.Category == "GPU")
-                    .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(SelectBestByDateThenVersion)
-                    .Take(3));
-
-            result.AddRange(
-                drivers.Where(d => d.Category == "Network")
-                    .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(SelectBestByDateThenVersion)
-                    .OrderByDescending(ParseDateSafe)
-                    .Take(5));
-
-            result.AddRange(
-                drivers.Where(d => d.Category == "Storage")
-                    .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(SelectBestByDateThenVersion)
-                    .OrderByDescending(ParseDateSafe)
-                    .Take(3));
-
-            var mainAudio = drivers.Where(d => d.Category == "AudioMain")
-                .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(SelectBestByDateThenVersion)
-                .OrderByDescending(ParseDateSafe)
-                .FirstOrDefault();
-
-            if (mainAudio != null)
-                result.Add(mainAudio);
-
-            result.AddRange(
-                drivers.Where(d => d.Category == "AudioExternal")
-                    .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-                    .Select(SelectBestByDateThenVersion)
-                    .OrderByDescending(ParseDateSafe));
-
-            return result
-                .GroupBy(BuildKey, StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.First())
-                .ToList();
-        }
-
-        private static DriverItem SelectBestByDateThenVersion(IGrouping<string, DriverItem> group)
-        {
-            return group.OrderByDescending(ParseDateSafe)
-                        .ThenByDescending(d => d.Version)
-                        .First();
         }
 
         private static int GetCategoryOrder(DriverItem driver)
@@ -600,137 +433,6 @@ namespace DriverHealthChecker.App
             return $"{driver.Category}|{driver.Name}";
         }
 
-        private static string CleanDeviceName(string name) => name.Trim();
-
-        private static string CleanManufacturer(string? manufacturer)
-        {
-            if (string.IsNullOrWhiteSpace(manufacturer))
-                return "-";
-
-            return manufacturer.Replace("Corporation", string.Empty)
-                               .Replace("(Standard system devices)", string.Empty)
-                               .Trim();
-        }
-
-        private static string FormatDate(string? rawDate)
-        {
-            if (string.IsNullOrWhiteSpace(rawDate))
-                return "-";
-
-            try
-            {
-                var date = ManagementDateTimeConverter.ToDateTime(rawDate);
-                return date.ToString("yyyy-MM-dd");
-            }
-            catch
-            {
-                return rawDate;
-            }
-        }
-
-        private static DateTime ParseDateSafe(DriverItem driver)
-        {
-            if (DateTime.TryParse(driver.Date, out var parsed))
-                return parsed;
-
-            return DateTime.MinValue;
-        }
     }
 
-    public class DriverItem
-    {
-        public string Name { get; set; } = "";
-        public string Category { get; set; } = "";
-        public string CategoryDisplay { get; set; } = "";
-        public string Manufacturer { get; set; } = "";
-        public string Version { get; set; } = "";
-        public string Date { get; set; } = "";
-        public string Status { get; set; } = "";
-        public string DetectionReason { get; set; } = "";
-        public string ButtonText { get; set; } = "Открыть";
-        public string ButtonTooltip { get; set; } = "Открыть действие";
-        public OfficialAction OfficialAction { get; set; } = OfficialAction.ForMessage("Открыть", "Источник не задан.", "Открыть действие");
-    }
-
-    public class DriverSnapshot
-    {
-        public string Version { get; set; } = "";
-        public string Date { get; set; } = "";
-    }
-
-    public enum OfficialActionKind
-    {
-        None,
-        Url,
-        LocalApp,
-        WindowsUpdate,
-        Search
-    }
-
-    public class OfficialAction
-    {
-        public OfficialActionKind Kind { get; set; }
-        public string Target { get; set; } = "";
-        public string Message { get; set; } = "";
-        public string ButtonText { get; set; } = "Открыть";
-        public string Tooltip { get; set; } = "Открыть действие";
-
-        public static OfficialAction ForUrl(string url, string buttonText, string tooltip)
-        {
-            return new OfficialAction
-            {
-                Kind = OfficialActionKind.Url,
-                Target = url,
-                Message = buttonText,
-                ButtonText = buttonText,
-                Tooltip = tooltip
-            };
-        }
-
-        public static OfficialAction ForLocalApp(string path, string buttonText, string tooltip)
-        {
-            return new OfficialAction
-            {
-                Kind = OfficialActionKind.LocalApp,
-                Target = path,
-                Message = buttonText,
-                ButtonText = buttonText,
-                Tooltip = tooltip
-            };
-        }
-
-        public static OfficialAction ForWindowsUpdate(string buttonText, string message, string tooltip)
-        {
-            return new OfficialAction
-            {
-                Kind = OfficialActionKind.WindowsUpdate,
-                Message = message,
-                ButtonText = buttonText,
-                Tooltip = tooltip
-            };
-        }
-
-        public static OfficialAction ForSearch(string query, string buttonText, string tooltip)
-        {
-            return new OfficialAction
-            {
-                Kind = OfficialActionKind.Search,
-                Target = query,
-                Message = buttonText,
-                ButtonText = buttonText,
-                Tooltip = tooltip
-            };
-        }
-
-        public static OfficialAction ForMessage(string buttonText, string message, string tooltip)
-        {
-            return new OfficialAction
-            {
-                Kind = OfficialActionKind.None,
-                Message = message,
-                ButtonText = buttonText,
-                Tooltip = tooltip
-            };
-        }
-    }
 }

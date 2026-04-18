@@ -25,12 +25,11 @@ public class LaptopOemRecommendationResolverTests
     }
 
     [Fact]
-    public void Resolve_UnknownOem_ReturnsSearchAction()
+    public void Resolve_UnknownOem_ReturnsSafeMessage()
     {
         var action = _resolver.Resolve("Contoso", "Book 1");
 
-        Assert.Equal(OfficialActionKind.Search, action.Kind);
-        Assert.Contains("Contoso", action.Target);
-        Assert.Contains("Book 1", action.Target);
+        Assert.Equal(OfficialActionKind.None, action.Kind);
+        Assert.Contains("OEM", action.ButtonText);
     }
 }
