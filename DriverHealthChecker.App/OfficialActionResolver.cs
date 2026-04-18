@@ -1,25 +1,53 @@
 using System;
-using System.IO;
-using System.Linq;
-using Microsoft.Win32;
 
 namespace DriverHealthChecker.App;
 
 internal interface IOfficialActionResolver
 {
-    OfficialAction Resolve(string name, string? manufacturer, string category);
+    OfficialAction Resolve(string name, string? manufacturer, string category, string? oemManufacturer = null, bool isLaptop = false);
 }
 
 internal sealed class OfficialActionResolver : IOfficialActionResolver
 {
-    public OfficialAction Resolve(string name, string? manufacturer, string category)
+    private readonly INvidiaAppLocator _nvidiaAppLocator;
+
+    public OfficialActionResolver()
+        : this(new NvidiaAppLocator())
+    {
+    }
+
+    internal OfficialActionResolver(INvidiaAppLocator nvidiaAppLocator)
+    {
+        _nvidiaAppLocator = nvidiaAppLocator;
+    }
+
+    public OfficialAction Resolve(string name, string? manufacturer, string category, string? oemManufacturer = null, bool isLaptop = false)
     {
         var n = name.ToLowerInvariant();
         var m = (manufacturer ?? string.Empty).ToLowerInvariant();
+        var oem = (oemManufacturer ?? string.Empty).ToLowerInvariant();
 
-        if (category == "GPU" && (n.Contains("nvidia") || n.Contains("geforce")))
+        var action = ResolveGpuAction(category, n)
+                     ?? ResolveNetworkAction(category, n, m)
+                     ?? ResolveStorageAction(category, n, m, oem, isLaptop)
+                     ?? ResolveAudioAction(category, n, m, oem, isLaptop)
+                     ?? ResolveDeviceRecommendationAction(category, oem);
+
+        if (action != null)
+            return action;
+
+        AppLogger.Info($"Official action fallback used. category={category}, name={name}, manufacturer={manufacturer ?? "-"}.");
+        return OfficialAction.ForMessage(
+            "OEM/вендор",
+            "Для этого устройства точный официальный источник пока не определён. Используйте OEM-поддержку устройства или сайт производителя устройства.",
+            "Показать безопасную рекомендацию");
+    }
+
+    private OfficialAction? ResolveGpuAction(string category, string normalizedName)
+    {
+        if (category == "GPU" && (normalizedName.Contains("nvidia") || normalizedName.Contains("geforce")))
         {
-            var appPath = FindNvidiaApp();
+            var appPath = _nvidiaAppLocator.FindInstalledAppPath();
             if (!string.IsNullOrWhiteSpace(appPath))
                 return OfficialAction.ForLocalApp(appPath, "NVIDIA App", "Открыть установленное приложение NVIDIA");
 
@@ -29,7 +57,7 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
                 "Открыть официальный сайт для установки NVIDIA App");
         }
 
-        if (category == "GPU" && n.Contains("radeon"))
+        if (category == "GPU" && normalizedName.Contains("radeon"))
         {
             return OfficialAction.ForUrl(
                 DriverRules.AmdDriversUrl,
@@ -37,145 +65,112 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
                 "Открыть официальный сайт AMD");
         }
 
-        if (category == "Network" && m.Contains("intel"))
+        return null;
+    }
+
+    private static OfficialAction? ResolveNetworkAction(string category, string normalizedName, string normalizedManufacturer)
+    {
+        if (category == "Network" && normalizedManufacturer.Contains("intel"))
         {
+            if (normalizedName.Contains("bluetooth"))
+                return OfficialAction.ForUrl(DriverRules.IntelBluetoothDriversUrl, "Intel Bluetooth", "Открыть официальный драйвер Intel Bluetooth");
+
+            if (normalizedName.Contains("wi-fi") || normalizedName.Contains("wireless") || normalizedName.Contains("wlan"))
+                return OfficialAction.ForUrl(DriverRules.IntelWirelessDriversUrl, "Intel Wi-Fi", "Открыть официальный драйвер Intel Wi-Fi");
+
             return OfficialAction.ForUrl(
                 DriverRules.IntelSupportAssistantUrl,
                 "Intel Tool",
                 "Открыть Intel Driver & Support Assistant");
         }
 
-        if (category == "Network")
+        if (category == "Network" && (normalizedManufacturer.Contains("realtek") || normalizedName.Contains("realtek")))
         {
-            return OfficialAction.ForSearch(
-                name + DriverRules.OfficialDriverSiteSearchSuffix,
-                "Найти драйвер",
-                "Открыть поиск официального драйвера по модели устройства");
-        }
-
-        if (category == "Storage")
-        {
-            if (m.Contains("intel") || n.Contains("intel"))
-            {
-                return OfficialAction.ForUrl(
-                    DriverRules.IntelSupportAssistantUrl,
-                    "Intel Tool",
-                    "Открыть Intel Driver & Support Assistant");
-            }
-
-            return OfficialAction.ForWindowsUpdate(
-                "Windows Update",
-                "Открыть Windows Update",
-                "Перейти в Windows Update для безопасной проверки системных обновлений");
-        }
-
-        if (category == "AudioMain" || category == "AudioExternal")
-        {
-            if (m.Contains("realtek") || n.Contains("realtek"))
-            {
-                return OfficialAction.ForSearch(
-                    name + DriverRules.OfficialDriverSiteSearchSuffix,
-                    "Найти драйвер",
-                    "Открыть поиск официального драйвера Realtek");
-            }
-
-            return OfficialAction.ForMessage(
-                "Как обновить",
-                "Для аудио-драйверов в первой версии лучше использовать сайт производителя устройства или производителя ноутбука/материнской платы.",
-                "Показать безопасную рекомендацию по обновлению");
-        }
-
-        return OfficialAction.ForMessage(
-            "Открыть",
-            "Для этого устройства точный официальный источник в первой версии ещё не настроен.",
-            "Показать информационное сообщение");
-    }
-
-    private static string? FindNvidiaApp()
-    {
-        var candidates = new[]
-        {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA Corporation", "NVIDIA app", "CEF", "NVIDIA App.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "NVIDIA Corporation", "NVIDIA app", "CEF", "NVIDIA App.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA Corporation", "NVIDIA app", "NVIDIA App.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "NVIDIA Corporation", "NVIDIA app", "NVIDIA App.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "NVIDIA Corporation", "NVIDIA GeForce Experience", "NVIDIA GeForce Experience.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "NVIDIA Corporation", "NVIDIA GeForce Experience", "NVIDIA GeForce Experience.exe")
-        };
-
-        foreach (var path in candidates)
-        {
-            if (File.Exists(path))
-                return path;
-        }
-
-        return FindNvidiaFromRegistry();
-    }
-
-    private static string? FindNvidiaFromRegistry()
-    {
-        var roots = new[]
-        {
-            Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
-            Registry.LocalMachine.OpenSubKey(@"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")
-        };
-
-        foreach (var root in roots)
-        {
-            if (root == null)
-                continue;
-
-            foreach (var subKeyName in root.GetSubKeyNames())
-            {
-                try
-                {
-                    using var subKey = root.OpenSubKey(subKeyName);
-                    if (subKey == null)
-                        continue;
-
-                    var displayName = subKey.GetValue("DisplayName")?.ToString() ?? "";
-                    if (!displayName.Contains("NVIDIA App", StringComparison.OrdinalIgnoreCase) &&
-                        !displayName.Contains("GeForce Experience", StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    var displayIcon = NormalizeExecutablePath(subKey.GetValue("DisplayIcon")?.ToString());
-                    if (!string.IsNullOrWhiteSpace(displayIcon) && File.Exists(displayIcon))
-                        return displayIcon;
-
-                    var installLocation = subKey.GetValue("InstallLocation")?.ToString();
-                    if (!string.IsNullOrWhiteSpace(installLocation) && Directory.Exists(installLocation))
-                    {
-                        var exe = Directory.GetFiles(installLocation, "*.exe", SearchOption.TopDirectoryOnly)
-                            .FirstOrDefault(f =>
-                                Path.GetFileName(f).Contains("NVIDIA App", StringComparison.OrdinalIgnoreCase) ||
-                                Path.GetFileName(f).Contains("GeForce Experience", StringComparison.OrdinalIgnoreCase));
-
-                        if (!string.IsNullOrWhiteSpace(exe))
-                            return exe;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Error(
-                        "Ошибка при чтении записи реестра NVIDIA/GeForce Experience.",
-                        ex);
-                }
-            }
+            return OfficialAction.ForUrl(
+                DriverRules.RealtekDownloadsUrl,
+                "Realtek Downloads",
+                "Открыть официальный центр загрузок Realtek");
         }
 
         return null;
     }
 
-    private static string? NormalizeExecutablePath(string? rawPath)
+    private static OfficialAction? ResolveStorageAction(string category, string normalizedName, string normalizedManufacturer, string normalizedOemManufacturer, bool isLaptop)
     {
-        if (string.IsNullOrWhiteSpace(rawPath))
+        if (category != "Storage")
             return null;
 
-        var cleaned = rawPath.Trim().Trim('"');
-        var commaIndex = cleaned.IndexOf(',');
-        if (commaIndex > 0)
-            cleaned = cleaned[..commaIndex];
+        if (normalizedManufacturer.Contains("intel") || normalizedName.Contains("intel") || normalizedName.Contains("rst") || normalizedName.Contains("vmd"))
+        {
+            return OfficialAction.ForUrl(
+                DriverRules.IntelRstDriversUrl,
+                "Intel RST",
+                "Открыть официальный драйвер Intel Rapid Storage Technology");
+        }
 
-        return cleaned;
+        if (IsOemLaptopAudioOrSupportComponent(normalizedName, normalizedOemManufacturer, isLaptop))
+        {
+            return OfficialAction.ForUrl(
+                DriverRules.HuaweiPcManagerUrl,
+                "Huawei PC Manager",
+                "Для OEM-ноутбука безопаснее использовать Huawei PC Manager");
+        }
+
+        return OfficialAction.ForMessage(
+            "OEM/вендор",
+            "Для этого контроллера надёжнее использовать поддержку OEM устройства или официальную страницу производителя контроллера.",
+            "Показать безопасную рекомендацию без универсального перенаправления");
     }
+
+    private static OfficialAction? ResolveAudioAction(string category, string normalizedName, string normalizedManufacturer, string normalizedOemManufacturer, bool isLaptop)
+    {
+        if (category != "AudioMain" && category != "AudioExternal")
+            return null;
+
+        if (IsOemLaptopAudioOrSupportComponent(normalizedName, normalizedOemManufacturer, isLaptop))
+        {
+            return OfficialAction.ForUrl(
+                DriverRules.HuaweiPcManagerUrl,
+                "Huawei PC Manager",
+                "Для OEM-зависимого аудио используйте инструмент производителя ноутбука");
+        }
+
+        if (normalizedManufacturer.Contains("realtek") || normalizedName.Contains("realtek"))
+        {
+            return OfficialAction.ForUrl(
+                DriverRules.RealtekDownloadsUrl,
+                "Realtek Downloads",
+                "Открыть официальный центр загрузок Realtek");
+        }
+
+        return OfficialAction.ForMessage(
+            "OEM/вендор",
+            "Для аудио-драйверов используйте OEM-поддержку устройства или официальный сайт производителя аудиочипа.",
+            "Показать безопасную рекомендацию по обновлению");
+    }
+
+    private static OfficialAction? ResolveDeviceRecommendationAction(string category, string normalizedOemManufacturer)
+    {
+        if (category == "DeviceRecommendation" && (normalizedOemManufacturer.Contains("huawei") || normalizedOemManufacturer.Contains("honor")))
+            return OfficialAction.ForUrl(DriverRules.HuaweiPcManagerUrl, "Huawei PC Manager", "Открыть официальный инструмент Huawei");
+
+        return null;
+    }
+
+    private static bool IsOemLaptopAudioOrSupportComponent(string name, string oemManufacturer, bool isLaptop)
+    {
+        if (!isLaptop)
+            return false;
+
+        var isHuawei = oemManufacturer.Contains("huawei") || oemManufacturer.Contains("honor");
+        if (!isHuawei)
+            return false;
+
+        return name.Contains("huawei audio service")
+               || name.Contains("hwve")
+               || name.Contains("nahimic")
+               || name.Contains("elan")
+               || name.Contains("smbus");
+    }
+
 }

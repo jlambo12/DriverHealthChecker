@@ -34,6 +34,7 @@ internal sealed class ScanReportWriter : IScanReportWriter
         try
         {
             var baseDir = _baseDirProvider();
+            AppLogger.Info($"Scan report write started. baseDir={baseDir}, drivers={drivers.Count}, isRescan={isRescan}.");
 
             Directory.CreateDirectory(baseDir);
 
@@ -62,6 +63,7 @@ internal sealed class ScanReportWriter : IScanReportWriter
             });
 
             File.WriteAllText(fullPath, json);
+            AppLogger.Info($"Scan report write completed. path={fullPath}.");
             return fullPath;
         }
         catch (Exception ex)

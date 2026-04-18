@@ -83,9 +83,9 @@ internal sealed class LaptopOemRecommendationResolver : ILaptopOemRecommendation
                 $"Рекомендуется для ноутбуков {matchedRule.DisplayVendor}{displayModel}");
         }
 
-        return OfficialAction.ForSearch(
-            $"{manufacturer} {model} laptop support utility",
-            "Найти OEM-софт",
-            "Открыть поиск официального OEM-приложения для ноутбука");
+        return OfficialAction.ForMessage(
+            "OEM-поддержка",
+            "Для этого ноутбука используйте официальный центр поддержки OEM-производителя по модели устройства.",
+            "Показать безопасную рекомендацию по OEM-поддержке");
     }
 }

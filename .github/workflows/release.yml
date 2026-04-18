@@ -1,0 +1,133 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (for example 1.0.44)"
+        required: true
+      publish:
+        description: "Publish release immediately"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "push") {
+            $version = "${{ github.ref_name }}"
+            if ($version.StartsWith("v")) {
+              $version = $version.Substring(1)
+            }
+          }
+          else {
+            $version = "${{ github.event.inputs.version }}"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Unable to resolve release version."
+          }
+
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Resolved version: $version"
+
+      - name: Validate csproj version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content "DriverHealthChecker.App/DriverHealthChecker.App.csproj"
+          $csprojVersion = $project.Project.PropertyGroup.Version
+          $releaseVersion = "${{ steps.version.outputs.version }}"
+
+          if ($csprojVersion -ne $releaseVersion) {
+            throw "Version mismatch. csproj=$csprojVersion release=$releaseVersion"
+          }
+
+      - name: Install Velopack CLI
+        shell: pwsh
+        run: dotnet tool install -g vpk --version 0.0.1298
+
+      - name: Restore
+        run: dotnet restore DriverHealthChecker.sln
+
+      - name: Build
+        run: dotnet build DriverHealthChecker.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test DriverHealthChecker.Tests/DriverHealthChecker.Tests.csproj --configuration Release --no-build
+
+      - name: Publish app
+        shell: pwsh
+        run: |
+          dotnet publish ./DriverHealthChecker.App/DriverHealthChecker.App.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:Version=${{ steps.version.outputs.version }} `
+            -o ./publish
+
+      - name: Pack Velopack release
+        shell: pwsh
+        run: |
+          vpk pack `
+            --packId jlambo12.DriverHealthChecker `
+            --packVersion ${{ steps.version.outputs.version }} `
+            --packDir ./publish `
+            --mainExe DriverHealthChecker.App.exe `
+            --packAuthors jlambo12 `
+            --packTitle "Driver Health Checker" `
+            --icon ./app.ico
+
+      - name: Upload release assets (published)
+        if: github.event_name == 'push' || github.event.inputs.publish == 'true'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          vpk upload github `
+            --outputDir ./Releases `
+            --repoUrl https://github.com/${{ github.repository }} `
+            --token $env:GITHUB_TOKEN `
+            --publish `
+            --releaseName "Driver Health Checker ${{ steps.version.outputs.version }}" `
+            --tag v${{ steps.version.outputs.version }}
+
+      - name: Upload release assets (draft)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish != 'true'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          vpk upload github `
+            --outputDir ./Releases `
+            --repoUrl https://github.com/${{ github.repository }} `
+            --token $env:GITHUB_TOKEN `
+            --releaseName "Driver Health Checker ${{ steps.version.outputs.version }}" `
+            --tag v${{ steps.version.outputs.version }}
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: velopack-release-${{ steps.version.outputs.version }}
+          path: Releases/*
+          if-no-files-found: error
