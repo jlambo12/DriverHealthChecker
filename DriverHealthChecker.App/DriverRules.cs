@@ -6,8 +6,10 @@ internal static class DriverRules
     public const string NvidiaAppUrl = "https://www.nvidia.com/en-us/software/nvidia-app/";
     public const string AmdDriversUrl = "https://www.amd.com/en/support/download/drivers.html";
     public const string IntelSupportAssistantUrl = "https://www.intel.com/content/www/us/en/support/detect.html";
-    public const string GoogleSearchUrlPrefix = "https://www.google.com/search?q=";
-    public const string OfficialDriverSiteSearchSuffix = " official driver site";
+    public const string IntelWirelessDriversUrl = "https://www.intel.com/content/www/us/en/download/19351/intel-wireless-wi-fi-drivers-for-windows-10-and-windows-11.html";
+    public const string IntelBluetoothDriversUrl = "https://www.intel.com/content/www/us/en/download/18649/intel-wireless-bluetooth-for-windows-10-and-windows-11.html";
+    public const string IntelRstDriversUrl = "https://www.intel.com/content/www/us/en/download/19347/intel-rapid-storage-technology-intel-rst-user-interface-and-driver.html";
+    public const string RealtekDownloadsUrl = "https://www.realtek.com/Download/List?cate_id=593";
     public const string LenovoVantageUrl = "https://apps.microsoft.com/detail/9wzdncrfj4mv";
     public const string AsusMyAsusUrl = "https://apps.microsoft.com/detail/9n7r5s6b0zzh";
     public const string HpSupportAssistantUrl = "https://support.hp.com/us-en/help/hp-support-assistant";
@@ -16,8 +18,6 @@ internal static class DriverRules
     public const string MsiCenterUrl = "https://www.msi.com/Landing/MSI-Center";
     public const string HuaweiPcManagerUrl = "https://consumer.huawei.com/en/support/pc-manager/";
 
-    // Blacklist is intentionally split into groups so it is easy to maintain and reason about
-    // why a device was hidden from the main user-facing list.
     public static readonly BlacklistGroup[] BlacklistGroups =
     {
         new(
@@ -39,14 +39,12 @@ internal static class DriverRules
             ])
     };
 
-    // Brand anchors for external USB/audio interfaces.
     public static readonly string[] ExternalAudioBrands =
     {
         "focusrite", "sound blaster", "creative", "xonar", "steinberg",
         "motu", "audient", "rme", "universal audio", "presonus", "scarlett"
     };
 
-    // GPU category terms are centralized here so classifier logic stays deterministic.
     public static readonly KeywordRule[] GpuKeywordRules =
     {
         new("nvidia", "GPU: найдено совпадение по NVIDIA"),
@@ -57,7 +55,6 @@ internal static class DriverRules
         new("intel arc", "GPU: найдено совпадение по Intel graphics")
     };
 
-    // Network-category anchors (Ethernet / Wi-Fi / Bluetooth and vendor hints).
     public static readonly string[] NetworkTerms =
     {
         "ethernet", "wi-fi", "wireless", "wlan", "bluetooth", "killer",
@@ -66,21 +63,18 @@ internal static class DriverRules
         "marvell", "aquantia", "broadcom"
     };
 
-    // Storage-controller anchors (NVMe/SATA/RAID/VMD etc.).
     public static readonly string[] StorageTerms =
     {
         "nvme", "sata ahci", "raid", "rst", "vmd", "storage controller",
         "scsiadapter", "sas", "ahci", "u.2", "emmc", "ufs"
     };
 
-    // Built-in/main audio anchors.
     public static readonly string[] MainAudioTerms =
     {
         "realtek audio", "intel smart sound", "high definition audio",
         "audio codec", "cirrus logic", "conexant", "nahimic"
     };
 
-    // OEM laptop mapping for recommendation banner/action.
     public static readonly LaptopOemRule[] LaptopOemRules =
     {
         new(["lenovo"], "Lenovo", LenovoVantageUrl, "Lenovo Vantage"),
