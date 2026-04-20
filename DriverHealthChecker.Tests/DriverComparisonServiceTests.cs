@@ -23,7 +23,7 @@ public class DriverComparisonServiceTests
 
         _service.ApplyComparison(drivers, isRescan: true, previous);
 
-        Assert.Equal("Недавно обновлён", drivers[0].Status);
+        Assert.Equal(DriverHealthStatus.RecentlyUpdated, drivers[0].StatusKind);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class DriverComparisonServiceTests
 
         _service.ApplyComparison(drivers, isRescan: true, previous);
 
-        Assert.NotEqual("Недавно обновлён", drivers[0].Status);
+        Assert.NotEqual(DriverHealthStatus.RecentlyUpdated, drivers[0].StatusKind);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class DriverComparisonServiceTests
 
         _service.ApplyComparison(drivers, isRescan: true, new Dictionary<string, DriverSnapshot>());
 
-        Assert.NotEqual("Недавно обновлён", drivers[0].Status);
+        Assert.NotEqual(DriverHealthStatus.RecentlyUpdated, drivers[0].StatusKind);
     }
 
     [Fact]
@@ -72,6 +72,33 @@ public class DriverComparisonServiceTests
 
         _service.ApplyComparison(drivers, isRescan: true, previous);
 
-        Assert.NotEqual("Недавно обновлён", drivers[0].Status);
+        Assert.NotEqual(DriverHealthStatus.RecentlyUpdated, drivers[0].StatusKind);
+    }
+
+    [Fact]
+    public void ApplyComparison_DeviceRecommendation_AlwaysMarkedAsRecommendation()
+    {
+        var drivers = new List<DriverItem>
+        {
+            new() { Name = "OEM Recommendation", Category = "DeviceRecommendation", Version = "-", Date = "-" }
+        };
+
+        _service.ApplyComparison(drivers, isRescan: true, new Dictionary<string, DriverSnapshot>());
+
+        Assert.Equal(DriverHealthStatus.Recommendation, drivers[0].StatusKind);
+    }
+
+    [Fact]
+    public void BuildSnapshot_UsesCategoryAndNameAsStableKey()
+    {
+        var drivers = new List<DriverItem>
+        {
+            new() { Name = "Intel Wi-Fi", Category = "Network", Version = "1.2.3", Date = "2026-01-01" }
+        };
+
+        var snapshot = _service.BuildSnapshot(drivers);
+
+        Assert.True(snapshot.ContainsKey("Network|Intel Wi-Fi"));
+        Assert.Equal("1.2.3", snapshot["Network|Intel Wi-Fi"].Version);
     }
 }

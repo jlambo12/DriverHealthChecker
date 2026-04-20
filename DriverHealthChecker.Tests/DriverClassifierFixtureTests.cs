@@ -42,11 +42,11 @@ public class DriverClassifierFixtureTests
 
         if (!fixture.ShouldClassify)
         {
-            Assert.True(string.IsNullOrWhiteSpace(category));
+            Assert.Equal(DriverCategory.Unknown, category);
             return;
         }
 
-        Assert.Equal(fixture.ExpectedCategory, category);
+        Assert.Equal(DriverTextMapper.ParseCategoryCode(fixture.ExpectedCategory), category);
         Assert.False(string.IsNullOrWhiteSpace(reason));
     }
 

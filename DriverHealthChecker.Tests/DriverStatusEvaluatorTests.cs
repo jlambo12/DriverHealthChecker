@@ -12,27 +12,41 @@ public class DriverStatusEvaluatorTests
     public void EvaluateStatus_InvalidDate_ReturnsCheckStatus()
     {
         var status = _evaluator.EvaluateStatus("not-a-date");
-        Assert.Equal("Стоит проверить", status);
+        Assert.Equal(DriverHealthStatus.NeedsReview, status);
     }
 
     [Fact]
     public void EvaluateStatus_RecentDate_ReturnsActual()
     {
-        var status = _evaluator.EvaluateStatus(DateTime.Now.AddDays(-30).ToString("yyyy-MM-dd"));
-        Assert.Equal("Актуален", status);
+        var status = _evaluator.EvaluateStatus(DateTime.Today.AddDays(-30).ToString("yyyy-MM-dd"));
+        Assert.Equal(DriverHealthStatus.UpToDate, status);
     }
 
     [Fact]
     public void EvaluateStatus_MidAgeDate_ReturnsCheckStatus()
     {
-        var status = _evaluator.EvaluateStatus(DateTime.Now.AddDays(-700).ToString("yyyy-MM-dd"));
-        Assert.Equal("Стоит проверить", status);
+        var status = _evaluator.EvaluateStatus(DateTime.Today.AddDays(-700).ToString("yyyy-MM-dd"));
+        Assert.Equal(DriverHealthStatus.NeedsReview, status);
     }
 
     [Fact]
     public void EvaluateStatus_OldDate_ReturnsAttention()
     {
-        var status = _evaluator.EvaluateStatus(DateTime.Now.AddDays(-1500).ToString("yyyy-MM-dd"));
-        Assert.Equal("Требует внимания", status);
+        var status = _evaluator.EvaluateStatus(DateTime.Today.AddDays(-1500).ToString("yyyy-MM-dd"));
+        Assert.Equal(DriverHealthStatus.NeedsAttention, status);
+    }
+
+    [Fact]
+    public void EvaluateStatus_ExactlyOneYearOld_ReturnsUpToDate()
+    {
+        var status = _evaluator.EvaluateStatus(DateTime.Today.AddDays(-365).ToString("yyyy-MM-dd"));
+        Assert.Equal(DriverHealthStatus.UpToDate, status);
+    }
+
+    [Fact]
+    public void EvaluateStatus_ExactlyThreeYearsOld_ReturnsNeedsReview()
+    {
+        var status = _evaluator.EvaluateStatus(DateTime.Today.AddDays(-1095).ToString("yyyy-MM-dd"));
+        Assert.Equal(DriverHealthStatus.NeedsReview, status);
     }
 }

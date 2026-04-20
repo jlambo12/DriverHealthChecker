@@ -5,56 +5,54 @@ namespace DriverHealthChecker.App;
 
 internal interface IDriverClassifier
 {
-    bool TryClassify(string name, string? manufacturer, out string category, out string reason);
+    bool TryClassify(string name, string? manufacturer, out DriverCategory category, out string reason);
 }
 
 internal sealed class DriverClassifier : IDriverClassifier
 {
-    public bool TryClassify(string name, string? manufacturer, out string category, out string reason)
+    public bool TryClassify(string name, string? manufacturer, out DriverCategory category, out string reason)
     {
-        category = string.Empty;
+        var normalized = Normalize(name, manufacturer);
+
+        category = DriverCategory.Unknown;
         reason = string.Empty;
 
-        var n = name.ToLowerInvariant();
-        var m = (manufacturer ?? string.Empty).ToLowerInvariant();
-
-        if (IsBlacklisted(n, out reason))
+        if (IsBlacklisted(normalized, out reason))
             return false;
 
-        if (IsGpu(n, out reason))
-        {
-            category = "GPU";
-            return true;
-        }
+        if (TryClassifyGpu(normalized, out reason))
+            return SetResult(DriverCategory.Gpu, reason, out category, out reason);
 
-        if (IsNetwork(n, m, out reason))
-        {
-            category = "Network";
-            return true;
-        }
+        if (TryClassifyNetwork(normalized, out reason))
+            return SetResult(DriverCategory.Network, reason, out category, out reason);
 
-        if (IsStorage(n, out reason))
-        {
-            category = "Storage";
-            return true;
-        }
+        if (TryClassifyStorage(normalized, out reason))
+            return SetResult(DriverCategory.Storage, reason, out category, out reason);
 
-        if (IsMainAudio(n, m, out reason))
-        {
-            category = "AudioMain";
-            return true;
-        }
+        if (TryClassifyMainAudio(normalized, out reason))
+            return SetResult(DriverCategory.AudioMain, reason, out category, out reason);
 
-        if (IsExternalAudio(n, m, out reason))
-        {
-            category = "AudioExternal";
-            return true;
-        }
+        if (TryClassifyExternalAudio(normalized, out reason))
+            return SetResult(DriverCategory.AudioExternal, reason, out category, out reason);
 
         return false;
     }
 
-    private static bool IsBlacklisted(string n, out string reason)
+    private static NormalizedDriverInfo Normalize(string name, string? manufacturer)
+    {
+        return new NormalizedDriverInfo(
+            name.ToLowerInvariant(),
+            (manufacturer ?? string.Empty).ToLowerInvariant());
+    }
+
+    private static bool SetResult(DriverCategory resolvedCategory, string resolvedReason, out DriverCategory category, out string reason)
+    {
+        category = resolvedCategory;
+        reason = resolvedReason;
+        return true;
+    }
+
+    private static bool IsBlacklisted(NormalizedDriverInfo info, out string reason)
     {
         foreach (var group in DriverRules.BlacklistGroups)
         {
@@ -74,7 +72,7 @@ internal sealed class DriverClassifier : IDriverClassifier
             return true;
         }
 
-        if (n.Contains("nvidia") && n.Contains("audio"))
+        if (info.Name.Contains("nvidia") && info.Name.Contains("audio"))
         {
             reason = "Скрыто: виртуальное/служебное NVIDIA Audio устройство";
             return true;
@@ -84,20 +82,16 @@ internal sealed class DriverClassifier : IDriverClassifier
         return false;
     }
 
-    private static bool IsGpu(string n, out string reason)
+    private static bool TryClassifyGpu(NormalizedDriverInfo info, out string reason)
     {
         foreach (var gpuRule in DriverRules.GpuKeywordRules)
         {
-            if (!n.Contains(gpuRule.Term))
-            {
+            if (!info.Name.Contains(gpuRule.Term))
                 continue;
-            }
 
             // Avoid classifying NVIDIA audio components as GPU.
-            if (gpuRule.Term == "nvidia" && n.Contains("audio"))
-            {
+            if (gpuRule.Term == "nvidia" && info.Name.Contains("audio"))
                 continue;
-            }
 
             reason = gpuRule.Reason;
             return true;
@@ -107,22 +101,18 @@ internal sealed class DriverClassifier : IDriverClassifier
         return false;
     }
 
-    private static bool IsNetwork(string n, string m, out string reason)
+    private static bool TryClassifyNetwork(NormalizedDriverInfo info, out string reason)
     {
-        var matchedTerm = DriverRules.NetworkTerms.FirstOrDefault(n.Contains);
-        if (!string.IsNullOrWhiteSpace(matchedTerm))
-        {
-            reason = $"Сеть: ключевое слово '{matchedTerm}'";
+        if (TryMatchByTerms(info.Name, DriverRules.NetworkTerms, "Сеть", out reason))
             return true;
-        }
 
-        if (m.Contains("intel") && (n.Contains("wireless") || n.Contains("bluetooth") || n.Contains("ax") || n.Contains("be200") || n.Contains("be202")))
+        if (info.Manufacturer.Contains("intel") && ContainsAny(info.Name, "wireless", "bluetooth", "ax", "be200", "be202"))
         {
             reason = "Сеть: Intel wireless/bluetooth эвристика";
             return true;
         }
 
-        if (m.Contains("realtek") && (n.Contains("rtl") || n.Contains("family controller") || n.Contains("gaming")))
+        if (info.Manufacturer.Contains("realtek") && ContainsAny(info.Name, "rtl", "family controller", "gaming"))
         {
             reason = "Сеть: Realtek family/RTL эвристика";
             return true;
@@ -132,30 +122,18 @@ internal sealed class DriverClassifier : IDriverClassifier
         return false;
     }
 
-    private static bool IsStorage(string n, out string reason)
+    private static bool TryClassifyStorage(NormalizedDriverInfo info, out string reason)
     {
-        var matchedTerm = DriverRules.StorageTerms.FirstOrDefault(n.Contains);
-        if (!string.IsNullOrWhiteSpace(matchedTerm))
-        {
-            reason = $"Хранение: ключевое слово '{matchedTerm}'";
-            return true;
-        }
-
-        reason = string.Empty;
-        return false;
+        return TryMatchByTerms(info.Name, DriverRules.StorageTerms, "Хранение", out reason);
     }
 
-    private static bool IsMainAudio(string n, string m, out string reason)
+    private static bool TryClassifyMainAudio(NormalizedDriverInfo info, out string reason)
     {
-        var matchedTerm = DriverRules.MainAudioTerms.FirstOrDefault(n.Contains);
-        if (!string.IsNullOrWhiteSpace(matchedTerm))
-        {
-            reason = $"Аудио: ключевое слово '{matchedTerm}'";
+        if (TryMatchByTerms(info.Name, DriverRules.MainAudioTerms, "Аудио", out reason))
             return true;
-        }
 
-        if ((n.Contains("realtek") && n.Contains("audio")) ||
-            (m.Contains("realtek") && n.Contains("audio")))
+        if ((info.Name.Contains("realtek") && info.Name.Contains("audio")) ||
+            (info.Manufacturer.Contains("realtek") && info.Name.Contains("audio")))
         {
             reason = "Аудио: эвристика Realtek";
             return true;
@@ -165,33 +143,52 @@ internal sealed class DriverClassifier : IDriverClassifier
         return false;
     }
 
-    private static bool IsExternalAudio(string n, string m, out string reason)
+    private static bool TryClassifyExternalAudio(NormalizedDriverInfo info, out string reason)
     {
-        var brand = DriverRules.ExternalAudioBrands.FirstOrDefault(n.Contains);
+        var brand = DriverRules.ExternalAudioBrands.FirstOrDefault(info.Name.Contains);
         if (!string.IsNullOrWhiteSpace(brand))
         {
             reason = $"Внешнее аудио: бренд '{brand}'";
             return true;
         }
 
-        if (n.Contains("usb audio device"))
+        if (info.Name.Contains("usb audio device"))
         {
             reason = string.Empty;
             return false;
         }
 
-        if ((n.Contains("audio") || m.Contains("audio")) &&
-            !n.Contains("realtek") &&
-            !n.Contains("nvidia") &&
-            !n.Contains("virtual") &&
-            !n.Contains("endpoint") &&
-            !n.Contains("controller"))
+        if (ContainsAny(info.Name, "audio") || info.Manufacturer.Contains("audio"))
         {
-            reason = "Внешнее аудио: обобщённая аудио-эвристика";
+            var shouldSkip = ContainsAny(info.Name, "realtek", "nvidia", "virtual", "endpoint", "controller");
+            if (!shouldSkip)
+            {
+                reason = "Внешнее аудио: обобщённая аудио-эвристика";
+                return true;
+            }
+        }
+
+        reason = string.Empty;
+        return false;
+    }
+
+    private static bool TryMatchByTerms(string source, string[] terms, string areaName, out string reason)
+    {
+        var matchedTerm = terms.FirstOrDefault(source.Contains);
+        if (!string.IsNullOrWhiteSpace(matchedTerm))
+        {
+            reason = $"{areaName}: ключевое слово '{matchedTerm}'";
             return true;
         }
 
         reason = string.Empty;
         return false;
     }
+
+    private static bool ContainsAny(string source, params string[] terms)
+    {
+        return terms.Any(source.Contains);
+    }
+
+    private readonly record struct NormalizedDriverInfo(string Name, string Manufacturer);
 }

@@ -44,16 +44,16 @@ public class DriverScanMapperTests
 
         public StubClassifier(bool classify) => _classify = classify;
 
-        public bool TryClassify(string? name, string? manufacturer, out string category, out string reason)
+        public bool TryClassify(string name, string? manufacturer, out DriverCategory category, out string reason)
         {
             if (_classify)
             {
-                category = "Network";
+                category = DriverCategory.Network;
                 reason = "stub";
                 return true;
             }
 
-            category = string.Empty;
+            category = DriverCategory.Unknown;
             reason = "noise";
             return false;
         }
@@ -61,7 +61,7 @@ public class DriverScanMapperTests
 
     private sealed class StubActionResolver : IOfficialActionResolver
     {
-        public OfficialAction Resolve(string name, string? manufacturer, string category, string? oemManufacturer = null, bool isLaptop = false)
+        public OfficialAction Resolve(string name, string? manufacturer, DriverCategory category, string? oemManufacturer = null, bool isLaptop = false)
         {
             return OfficialAction.ForUrl("https://example.com", "Intel Tool", "stub");
         }

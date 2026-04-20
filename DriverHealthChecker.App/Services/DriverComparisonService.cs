@@ -33,19 +33,19 @@ internal sealed class DriverComparisonService : IDriverComparisonService
 
                 if (versionChanged || dateChanged)
                 {
-                    driver.Status = "Недавно обновлён";
+                    driver.StatusKind = DriverHealthStatus.RecentlyUpdated;
                     recentlyUpdatedCount++;
                     continue;
                 }
             }
 
-            if (driver.Category == "DeviceRecommendation")
+            if (driver.CategoryKind == DriverCategory.DeviceRecommendation)
             {
-                driver.Status = "Рекомендация";
+                driver.StatusKind = DriverHealthStatus.Recommendation;
                 continue;
             }
 
-            driver.Status = _driverStatusEvaluator.EvaluateStatus(driver.Date);
+            driver.StatusKind = _driverStatusEvaluator.EvaluateStatus(driver.Date);
         }
 
         AppLogger.Info($"Comparison applied. isRescan={isRescan}, total={currentDrivers.Count}, recentlyUpdated={recentlyUpdatedCount}.");

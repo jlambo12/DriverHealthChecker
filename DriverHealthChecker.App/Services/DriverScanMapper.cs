@@ -59,9 +59,8 @@ internal sealed class DriverScanMapper : IDriverScanMapper
                     Manufacturer = CleanManufacturer(record.Manufacturer),
                     Version = string.IsNullOrWhiteSpace(record.Version) ? "-" : record.Version,
                     Date = FormatDate(record.RawDate),
-                    Category = category,
-                    CategoryDisplay = GetCategoryDisplay(category),
-                    Status = "Стоит проверить",
+                    CategoryKind = category,
+                    StatusKind = DriverHealthStatus.NeedsReview,
                     OfficialAction = action,
                     ButtonText = action.ButtonText,
                     DetectionReason = reason,
@@ -93,9 +92,8 @@ internal sealed class DriverScanMapper : IDriverScanMapper
             Manufacturer = CleanManufacturer(record.Manufacturer),
             Version = string.IsNullOrWhiteSpace(record.Version) ? "-" : record.Version,
             Date = FormatDate(record.RawDate),
-            Category = "HiddenSystem",
-            CategoryDisplay = GetCategoryDisplay("HiddenSystem"),
-            Status = "Скрыт",
+            CategoryKind = DriverCategory.HiddenSystem,
+            StatusKind = DriverHealthStatus.Hidden,
             DetectionReason = reason,
             OfficialAction = OfficialAction.ForMessage(
                 "Почему скрыто",
@@ -103,21 +101,6 @@ internal sealed class DriverScanMapper : IDriverScanMapper
                 reason),
             ButtonText = "Почему скрыто",
             ButtonTooltip = reason
-        };
-    }
-
-    private static string GetCategoryDisplay(string category)
-    {
-        return category switch
-        {
-            "GPU" => "GPU",
-            "Network" => "Сеть",
-            "Storage" => "Хранение",
-            "AudioMain" => "Аудио",
-            "AudioExternal" => "Аудиокарта",
-            "DeviceRecommendation" => "Рекомендация",
-            "HiddenSystem" => "Скрытые",
-            _ => category
         };
     }
 
