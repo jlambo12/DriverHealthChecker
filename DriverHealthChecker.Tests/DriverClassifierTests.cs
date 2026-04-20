@@ -19,7 +19,7 @@ public class DriverClassifierTests
         var result = _classifier.TryClassify(name, manufacturer, out var category, out var reason);
 
         Assert.True(result);
-        Assert.Equal(expectedCategory, category);
+        Assert.Equal<DriverCategory>(expectedCategory, category);
         Assert.False(string.IsNullOrWhiteSpace(reason));
     }
 
@@ -65,7 +65,7 @@ public class DriverClassifierTests
         var result = _classifier.TryClassify(name, manufacturer, out var category, out _);
 
         Assert.True(result);
-        Assert.Equal(expectedCategory, category);
+        Assert.Equal<DriverCategory>(expectedCategory, category);
     }
 
     [Theory]
