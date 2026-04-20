@@ -10,7 +10,7 @@ public class OfficialActionResolverTests
     [Fact]
     public void Resolve_IntelNetwork_ReturnsIntelToolUrl()
     {
-        var action = _resolver.Resolve("Intel(R) Wi-Fi 6E AX211", "Intel", "Network");
+        var action = _resolver.Resolve("Intel(R) Wi-Fi 6E AX211", "Intel", DriverCategory.Network);
 
         Assert.Equal(OfficialActionKind.Url, action.Kind);
         Assert.Equal(DriverRules.IntelWirelessDriversUrl, action.Target);
@@ -19,7 +19,7 @@ public class OfficialActionResolverTests
     [Fact]
     public void Resolve_NonIntelStorage_ReturnsSafeMessage()
     {
-        var action = _resolver.Resolve("Samsung NVMe Controller", "Samsung", "Storage");
+        var action = _resolver.Resolve("Samsung NVMe Controller", "Samsung", DriverCategory.Storage);
 
         Assert.Equal(OfficialActionKind.None, action.Kind);
         Assert.False(string.IsNullOrWhiteSpace(action.Message));
@@ -28,7 +28,7 @@ public class OfficialActionResolverTests
     [Fact]
     public void Resolve_RealtekAudio_ReturnsRealtekOfficialUrl()
     {
-        var action = _resolver.Resolve("Realtek(R) Audio", "Realtek", "AudioMain");
+        var action = _resolver.Resolve("Realtek(R) Audio", "Realtek", DriverCategory.AudioMain);
 
         Assert.Equal(OfficialActionKind.Url, action.Kind);
         Assert.Equal(DriverRules.RealtekDownloadsUrl, action.Target);
@@ -37,7 +37,7 @@ public class OfficialActionResolverTests
     [Fact]
     public void Resolve_HuaweiLaptopAudioComponent_PrefersHuaweiPcManager()
     {
-        var action = _resolver.Resolve("HWVE Audio Effects Component", "Realtek", "AudioMain", "HUAWEI", true);
+        var action = _resolver.Resolve("HWVE Audio Effects Component", "Realtek", DriverCategory.AudioMain, "HUAWEI", true);
 
         Assert.Equal(OfficialActionKind.Url, action.Kind);
         Assert.Equal(DriverRules.HuaweiPcManagerUrl, action.Target);
@@ -46,7 +46,7 @@ public class OfficialActionResolverTests
     [Fact]
     public void Resolve_IntelBluetoothNetwork_ReturnsIntelBluetoothUrl()
     {
-        var action = _resolver.Resolve("Intel Wireless Bluetooth", "Intel", "Network");
+        var action = _resolver.Resolve("Intel Wireless Bluetooth", "Intel", DriverCategory.Network);
 
         Assert.Equal(OfficialActionKind.Url, action.Kind);
         Assert.Equal(DriverRules.IntelBluetoothDriversUrl, action.Target);
@@ -55,7 +55,7 @@ public class OfficialActionResolverTests
     [Fact]
     public void Resolve_UnknownNetwork_ReturnsSafeMessage()
     {
-        var action = _resolver.Resolve("Contoso Network Adapter", "Contoso", "Network");
+        var action = _resolver.Resolve("Contoso Network Adapter", "Contoso", DriverCategory.Network);
 
         Assert.Equal(OfficialActionKind.None, action.Kind);
         Assert.Contains("OEM", action.Message);
@@ -66,10 +66,24 @@ public class OfficialActionResolverTests
     {
         var resolver = new OfficialActionResolver(new StubNvidiaAppLocator(@"C:\\Program Files\\NVIDIA App.exe"));
 
-        var action = resolver.Resolve("NVIDIA GeForce RTX", "NVIDIA", "GPU");
+        var action = resolver.Resolve("NVIDIA GeForce RTX", "NVIDIA", DriverCategory.Gpu);
 
         Assert.Equal(OfficialActionKind.LocalApp, action.Kind);
         Assert.Equal(@"C:\\Program Files\\NVIDIA App.exe", action.Target);
+    }
+
+    [Fact]
+    public void Resolve_DeviceRecommendationForHuawei_ReturnsHuaweiPcManagerUrl()
+    {
+        var action = _resolver.Resolve(
+            "Оптимизация ноутбука (рекомендация)",
+            "Huawei",
+            DriverCategory.DeviceRecommendation,
+            "HUAWEI",
+            isLaptop: true);
+
+        Assert.Equal(OfficialActionKind.Url, action.Kind);
+        Assert.Equal(DriverRules.HuaweiPcManagerUrl, action.Target);
     }
 
     private sealed class StubNvidiaAppLocator : INvidiaAppLocator

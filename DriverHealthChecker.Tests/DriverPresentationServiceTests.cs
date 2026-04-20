@@ -6,11 +6,11 @@ namespace DriverHealthChecker.Tests;
 public class DriverPresentationServiceTests
 {
     [Fact]
-    public void GetCategoryDisplay_ReturnsLocalizedDisplay()
+    public void GetCategoryOrder_ReturnsExpectedOrderForNetwork()
     {
         var service = new DriverPresentationService(new StubProfileDetector(null), new LaptopOemRecommendationResolver());
 
-        Assert.Equal("Сеть", service.GetCategoryDisplay("Network"));
+        Assert.Equal(2, service.GetCategoryOrder(DriverCategory.Network));
     }
 
     [Fact]

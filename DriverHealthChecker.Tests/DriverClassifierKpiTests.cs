@@ -21,13 +21,13 @@ public class DriverClassifierKpiTests
     {
         var fixtures = LoadFixtures();
 
-        var thresholds = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        var thresholds = new Dictionary<DriverCategory, double>
         {
-            ["GPU"] = 0.99,
-            ["Network"] = 0.95,
-            ["Storage"] = 0.95,
-            ["AudioMain"] = 0.95,
-            ["AudioExternal"] = 0.90
+            [DriverCategory.Gpu] = 0.99,
+            [DriverCategory.Network] = 0.95,
+            [DriverCategory.Storage] = 0.95,
+            [DriverCategory.AudioMain] = 0.95,
+            [DriverCategory.AudioExternal] = 0.90
         };
 
         foreach (var pair in thresholds)
@@ -36,14 +36,14 @@ public class DriverClassifierKpiTests
             var requiredAccuracy = pair.Value;
 
             var categoryCases = fixtures
-                .Where(x => x.ShouldClassify && string.Equals(x.ExpectedCategory, category, StringComparison.OrdinalIgnoreCase))
+                .Where(x => x.ShouldClassify && DriverTextMapper.ParseCategoryCode(x.ExpectedCategory) == category)
                 .ToList();
 
             Assert.NotEmpty(categoryCases);
 
             var passed = categoryCases.Count(c =>
                 _classifier.TryClassify(c.Name, c.Manufacturer, out var predictedCategory, out _) &&
-                string.Equals(predictedCategory, c.ExpectedCategory, StringComparison.OrdinalIgnoreCase));
+                predictedCategory == DriverTextMapper.ParseCategoryCode(c.ExpectedCategory));
 
             var accuracy = (double)passed / categoryCases.Count;
             Assert.True(

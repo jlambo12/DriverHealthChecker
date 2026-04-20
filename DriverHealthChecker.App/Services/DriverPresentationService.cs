@@ -2,8 +2,7 @@ namespace DriverHealthChecker.App;
 
 internal interface IDriverPresentationService
 {
-    int GetCategoryOrder(string category);
-    string GetCategoryDisplay(string category);
+    int GetCategoryOrder(DriverCategory category);
     DriverItem? BuildDeviceRecommendationItem();
 }
 
@@ -20,33 +19,18 @@ internal sealed class DriverPresentationService : IDriverPresentationService
         _laptopOemRecommendationResolver = laptopOemRecommendationResolver;
     }
 
-    public int GetCategoryOrder(string category)
+    public int GetCategoryOrder(DriverCategory category)
     {
         return category switch
         {
-            "GPU" => 1,
-            "Network" => 2,
-            "Storage" => 3,
-            "AudioMain" => 4,
-            "AudioExternal" => 5,
-            "DeviceRecommendation" => 6,
-            "HiddenSystem" => 98,
+            DriverCategory.Gpu => 1,
+            DriverCategory.Network => 2,
+            DriverCategory.Storage => 3,
+            DriverCategory.AudioMain => 4,
+            DriverCategory.AudioExternal => 5,
+            DriverCategory.DeviceRecommendation => 6,
+            DriverCategory.HiddenSystem => 98,
             _ => 99
-        };
-    }
-
-    public string GetCategoryDisplay(string category)
-    {
-        return category switch
-        {
-            "GPU" => "GPU",
-            "Network" => "Сеть",
-            "Storage" => "Хранение",
-            "AudioMain" => "Аудио",
-            "AudioExternal" => "Аудиокарта",
-            "DeviceRecommendation" => "Рекомендация",
-            "HiddenSystem" => "Скрытые",
-            _ => category
         };
     }
 
@@ -64,9 +48,8 @@ internal sealed class DriverPresentationService : IDriverPresentationService
             Manufacturer = string.IsNullOrWhiteSpace(profile.Manufacturer) ? "OEM" : profile.Manufacturer,
             Version = "-",
             Date = "-",
-            Category = "DeviceRecommendation",
-            CategoryDisplay = GetCategoryDisplay("DeviceRecommendation"),
-            Status = "Рекомендация",
+            CategoryKind = DriverCategory.DeviceRecommendation,
+            StatusKind = DriverHealthStatus.Recommendation,
             OfficialAction = action,
             DetectionReason = $"Ноутбук: {profile.Manufacturer} {profile.Model}".Trim(),
             ButtonText = action.ButtonText,
