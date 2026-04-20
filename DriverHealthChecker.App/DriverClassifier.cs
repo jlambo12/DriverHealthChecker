@@ -54,16 +54,18 @@ internal sealed class DriverClassifier : IDriverClassifier
 
     private static bool IsBlacklisted(NormalizedDriverInfo info, out string reason)
     {
+        var driverName = info.Name;
+
         foreach (var group in DriverRules.BlacklistGroups)
         {
-            var matched = group.Terms.FirstOrDefault(n.Contains);
+            var matched = group.Terms.FirstOrDefault(term => driverName.Contains(term));
             if (string.IsNullOrWhiteSpace(matched))
             {
                 continue;
             }
 
             // "Audio CoProcessor Device" should stay visible as an external audio candidate.
-            if (matched == "processor" && info.Name.Contains("audio"))
+            if (matched == "processor" && driverName.Contains("audio"))
             {
                 continue;
             }
@@ -72,7 +74,7 @@ internal sealed class DriverClassifier : IDriverClassifier
             return true;
         }
 
-        if (info.Name.Contains("nvidia") && info.Name.Contains("audio"))
+        if (driverName.Contains("nvidia") && driverName.Contains("audio"))
         {
             reason = "Скрыто: виртуальное/служебное NVIDIA Audio устройство";
             return true;
