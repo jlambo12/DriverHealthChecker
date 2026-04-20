@@ -14,7 +14,7 @@ internal sealed class DriverStatusEvaluator : IDriverStatusEvaluator
         if (!DateTime.TryParse(formattedDate, out var driverDate))
             return DriverHealthStatus.NeedsReview;
 
-        var ageInDays = (DateTime.Now - driverDate).TotalDays;
+        var ageInDays = (DateTime.Today - driverDate.Date).TotalDays;
 
         if (ageInDays <= 365)
             return DriverHealthStatus.UpToDate;

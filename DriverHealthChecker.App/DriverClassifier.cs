@@ -126,7 +126,17 @@ internal sealed class DriverClassifier : IDriverClassifier
 
     private static bool TryClassifyStorage(NormalizedDriverInfo info, out string reason)
     {
-        return TryMatchByTerms(info.Name, DriverRules.StorageTerms, "Хранение", out reason);
+        if (TryMatchByTerms(info.Name, DriverRules.StorageTerms, "Хранение", out reason))
+            return true;
+
+        if (info.Name.Contains("storage") && info.Name.Contains("controller"))
+        {
+            reason = "Хранение: эвристика storage+controller";
+            return true;
+        }
+
+        reason = string.Empty;
+        return false;
     }
 
     private static bool TryClassifyMainAudio(NormalizedDriverInfo info, out string reason)
