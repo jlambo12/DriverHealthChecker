@@ -63,7 +63,7 @@ internal sealed class DriverClassifier : IDriverClassifier
             }
 
             // "Audio CoProcessor Device" should stay visible as an external audio candidate.
-            if (matched == "processor" && n.Contains("audio"))
+            if (matched == "processor" && info.Name.Contains("audio"))
             {
                 continue;
             }
