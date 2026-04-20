@@ -6,12 +6,12 @@ namespace DriverHealthChecker.App;
 
 internal interface IWmiDriverScanner
 {
-    List<ScannedDriverRecord> ScanSignedDrivers();
+    OperationResult<List<ScannedDriverRecord>> ScanSignedDrivers();
 }
 
 internal sealed class WmiDriverScanner : IWmiDriverScanner
 {
-    public List<ScannedDriverRecord> ScanSignedDrivers()
+    public OperationResult<List<ScannedDriverRecord>> ScanSignedDrivers()
     {
         var result = new List<ScannedDriverRecord>();
         AppLogger.Info("WMI scan started (Win32_PnPSignedDriver).");
@@ -37,10 +37,10 @@ internal sealed class WmiDriverScanner : IWmiDriverScanner
         catch (Exception ex)
         {
             AppLogger.Error("Ошибка во время WMI-сканирования Win32_PnPSignedDriver.", ex);
-            throw;
+            return OperationResult<List<ScannedDriverRecord>>.Failure(ex.Message);
         }
 
         AppLogger.Info($"WMI scan completed. records={result.Count}.");
-        return result;
+        return OperationResult<List<ScannedDriverRecord>>.Success(result);
     }
 }

@@ -14,7 +14,7 @@ internal sealed class FixtureTemplateBuilder : IFixtureTemplateBuilder
     public IReadOnlyCollection<FixtureTemplateItem> Build(IEnumerable<DriverItem> drivers)
     {
         return drivers
-            .Where(d => !string.Equals(d.Category, "DeviceRecommendation", StringComparison.OrdinalIgnoreCase))
+            .Where(d => d.CategoryKind != DriverCategory.DeviceRecommendation)
             .GroupBy(d => $"{d.Name}|{d.Manufacturer}", StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
@@ -24,7 +24,7 @@ internal sealed class FixtureTemplateBuilder : IFixtureTemplateBuilder
 
     private static FixtureTemplateItem Map(DriverItem driver)
     {
-        if (string.Equals(driver.Category, "HiddenSystem", StringComparison.OrdinalIgnoreCase))
+        if (driver.CategoryKind == DriverCategory.HiddenSystem)
         {
             return new FixtureTemplateItem
             {

@@ -23,26 +23,26 @@ internal sealed class DriverSelectionService : IDriverSelectionService
         var result = new List<DriverItem>();
 
         result.AddRange(
-            drivers.Where(d => d.Category == "GPU")
+            drivers.Where(d => d.CategoryKind == DriverCategory.Gpu)
                 .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(SelectBestByDateThenVersion)
                 .Take(3));
 
         result.AddRange(
-            drivers.Where(d => d.Category == "Network")
+            drivers.Where(d => d.CategoryKind == DriverCategory.Network)
                 .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(SelectBestByDateThenVersion)
                 .OrderByDescending(ParseDateSafe)
                 .Take(5));
 
         result.AddRange(
-            drivers.Where(d => d.Category == "Storage")
+            drivers.Where(d => d.CategoryKind == DriverCategory.Storage)
                 .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(SelectBestByDateThenVersion)
                 .OrderByDescending(ParseDateSafe)
                 .Take(3));
 
-        var mainAudio = drivers.Where(d => d.Category == "AudioMain")
+        var mainAudio = drivers.Where(d => d.CategoryKind == DriverCategory.AudioMain)
             .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
             .Select(SelectBestByDateThenVersion)
             .OrderByDescending(ParseDateSafe)
@@ -52,7 +52,7 @@ internal sealed class DriverSelectionService : IDriverSelectionService
             result.Add(mainAudio);
 
         result.AddRange(
-            drivers.Where(d => d.Category == "AudioExternal")
+            drivers.Where(d => d.CategoryKind == DriverCategory.AudioExternal)
                 .GroupBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
                 .Select(SelectBestByDateThenVersion)
                 .OrderByDescending(ParseDateSafe));

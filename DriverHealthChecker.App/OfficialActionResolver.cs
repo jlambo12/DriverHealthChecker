@@ -4,7 +4,7 @@ namespace DriverHealthChecker.App;
 
 internal interface IOfficialActionResolver
 {
-    OfficialAction Resolve(string name, string? manufacturer, string category, string? oemManufacturer = null, bool isLaptop = false);
+    OfficialAction Resolve(string name, string? manufacturer, DriverCategory category, string? oemManufacturer = null, bool isLaptop = false);
 }
 
 internal sealed class OfficialActionResolver : IOfficialActionResolver
@@ -21,7 +21,7 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
         _nvidiaAppLocator = nvidiaAppLocator;
     }
 
-    public OfficialAction Resolve(string name, string? manufacturer, string category, string? oemManufacturer = null, bool isLaptop = false)
+    public OfficialAction Resolve(string name, string? manufacturer, DriverCategory category, string? oemManufacturer = null, bool isLaptop = false)
     {
         var n = name.ToLowerInvariant();
         var m = (manufacturer ?? string.Empty).ToLowerInvariant();
@@ -36,16 +36,16 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
         if (action != null)
             return action;
 
-        AppLogger.Info($"Official action fallback used. category={category}, name={name}, manufacturer={manufacturer ?? "-"}.");
+        AppLogger.Info($"Official action fallback used. category={DriverTextMapper.ToCategoryCode(category)}, name={name}, manufacturer={manufacturer ?? "-"}.");
         return OfficialAction.ForMessage(
             "OEM/вендор",
             "Для этого устройства точный официальный источник пока не определён. Используйте OEM-поддержку устройства или сайт производителя устройства.",
             "Показать безопасную рекомендацию");
     }
 
-    private OfficialAction? ResolveGpuAction(string category, string normalizedName)
+    private OfficialAction? ResolveGpuAction(DriverCategory category, string normalizedName)
     {
-        if (category == "GPU" && (normalizedName.Contains("nvidia") || normalizedName.Contains("geforce")))
+        if (category == DriverCategory.Gpu && (normalizedName.Contains("nvidia") || normalizedName.Contains("geforce")))
         {
             var appPath = _nvidiaAppLocator.FindInstalledAppPath();
             if (!string.IsNullOrWhiteSpace(appPath))
@@ -57,7 +57,7 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
                 "Открыть официальный сайт для установки NVIDIA App");
         }
 
-        if (category == "GPU" && normalizedName.Contains("radeon"))
+        if (category == DriverCategory.Gpu && normalizedName.Contains("radeon"))
         {
             return OfficialAction.ForUrl(
                 DriverRules.AmdDriversUrl,
@@ -68,9 +68,9 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
         return null;
     }
 
-    private static OfficialAction? ResolveNetworkAction(string category, string normalizedName, string normalizedManufacturer)
+    private static OfficialAction? ResolveNetworkAction(DriverCategory category, string normalizedName, string normalizedManufacturer)
     {
-        if (category == "Network" && normalizedManufacturer.Contains("intel"))
+        if (category == DriverCategory.Network && normalizedManufacturer.Contains("intel"))
         {
             if (normalizedName.Contains("bluetooth"))
                 return OfficialAction.ForUrl(DriverRules.IntelBluetoothDriversUrl, "Intel Bluetooth", "Открыть официальный драйвер Intel Bluetooth");
@@ -84,7 +84,7 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
                 "Открыть Intel Driver & Support Assistant");
         }
 
-        if (category == "Network" && (normalizedManufacturer.Contains("realtek") || normalizedName.Contains("realtek")))
+        if (category == DriverCategory.Network && (normalizedManufacturer.Contains("realtek") || normalizedName.Contains("realtek")))
         {
             return OfficialAction.ForUrl(
                 DriverRules.RealtekDownloadsUrl,
@@ -95,9 +95,9 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
         return null;
     }
 
-    private static OfficialAction? ResolveStorageAction(string category, string normalizedName, string normalizedManufacturer, string normalizedOemManufacturer, bool isLaptop)
+    private static OfficialAction? ResolveStorageAction(DriverCategory category, string normalizedName, string normalizedManufacturer, string normalizedOemManufacturer, bool isLaptop)
     {
-        if (category != "Storage")
+        if (category != DriverCategory.Storage)
             return null;
 
         if (normalizedManufacturer.Contains("intel") || normalizedName.Contains("intel") || normalizedName.Contains("rst") || normalizedName.Contains("vmd"))
@@ -122,9 +122,9 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
             "Показать безопасную рекомендацию без универсального перенаправления");
     }
 
-    private static OfficialAction? ResolveAudioAction(string category, string normalizedName, string normalizedManufacturer, string normalizedOemManufacturer, bool isLaptop)
+    private static OfficialAction? ResolveAudioAction(DriverCategory category, string normalizedName, string normalizedManufacturer, string normalizedOemManufacturer, bool isLaptop)
     {
-        if (category != "AudioMain" && category != "AudioExternal")
+        if (category != DriverCategory.AudioMain && category != DriverCategory.AudioExternal)
             return null;
 
         if (IsOemLaptopAudioOrSupportComponent(normalizedName, normalizedOemManufacturer, isLaptop))
@@ -149,9 +149,9 @@ internal sealed class OfficialActionResolver : IOfficialActionResolver
             "Показать безопасную рекомендацию по обновлению");
     }
 
-    private static OfficialAction? ResolveDeviceRecommendationAction(string category, string normalizedOemManufacturer)
+    private static OfficialAction? ResolveDeviceRecommendationAction(DriverCategory category, string normalizedOemManufacturer)
     {
-        if (category == "DeviceRecommendation" && (normalizedOemManufacturer.Contains("huawei") || normalizedOemManufacturer.Contains("honor")))
+        if (category == DriverCategory.DeviceRecommendation && (normalizedOemManufacturer.Contains("huawei") || normalizedOemManufacturer.Contains("honor")))
             return OfficialAction.ForUrl(DriverRules.HuaweiPcManagerUrl, "Huawei PC Manager", "Открыть официальный инструмент Huawei");
 
         return null;
