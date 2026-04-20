@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using DriverHealthChecker.App;
+using Microsoft.Win32;
 using Xunit;
 
 namespace DriverHealthChecker.Tests;
@@ -70,6 +71,75 @@ public sealed class InstalledOfficialAppCatalogTests
     }
 
     [Fact]
+    public void TryResolveInstalledApp_NvidiaInstalledFromRegistry_ReturnsLaunchChannel()
+    {
+        var executablePath = CreateTemporaryExecutable();
+        var registryKeyPath = CreateTemporaryRegistryKey(executablePath);
+        try
+        {
+            var catalog = new InstalledOfficialAppCatalog(
+                new LocalAppValidator(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                new[]
+                {
+                    new RegistryValueProbe(
+                        RegistryHive.CurrentUser,
+                        RegistryView.Default,
+                        registryKeyPath,
+                        string.Empty)
+                },
+                Array.Empty<RegistryValueProbe>());
+
+            var resolved = catalog.TryResolveInstalledApp(
+                new DriverIdentity
+                {
+                    NormalizedManufacturer = "NVIDIA CORPORATION"
+                },
+                out var channel);
+
+            Assert.True(resolved);
+            Assert.Equal(OfficialSupportChannelType.InstalledOfficialApp, channel.Type);
+            Assert.Equal(executablePath, channel.Target);
+        }
+        finally
+        {
+            DeleteTemporaryRegistryKey(registryKeyPath);
+            DeleteTemporaryExecutable(executablePath);
+        }
+    }
+
+    [Fact]
+    public void TryResolveInstalledApp_UsesOnlyExplicitRegistryProbes()
+    {
+        var executablePath = CreateTemporaryExecutable();
+        var registryKeyPath = CreateTemporaryRegistryKey(executablePath);
+        try
+        {
+            var catalog = new InstalledOfficialAppCatalog(
+                new LocalAppValidator(),
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<RegistryValueProbe>(),
+                Array.Empty<RegistryValueProbe>());
+
+            var resolved = catalog.TryResolveInstalledApp(
+                new DriverIdentity
+                {
+                    NormalizedManufacturer = "NVIDIA CORPORATION"
+                },
+                out _);
+
+            Assert.False(resolved);
+        }
+        finally
+        {
+            DeleteTemporaryRegistryKey(registryKeyPath);
+            DeleteTemporaryExecutable(executablePath);
+        }
+    }
+
+    [Fact]
     public void TryResolveInstalledApp_UnsupportedVendor_ReturnsFalse()
     {
         var catalog = new InstalledOfficialAppCatalog(
@@ -101,5 +171,24 @@ public sealed class InstalledOfficialAppCatalogTests
     {
         if (File.Exists(path))
             File.Delete(path);
+    }
+
+    private static string CreateTemporaryRegistryKey(string executablePath)
+    {
+        var keyPath = $@"Software\DriverHealthChecker.Tests\AppPaths\{Guid.NewGuid():N}";
+        using var key = Registry.CurrentUser.CreateSubKey(keyPath);
+        key?.SetValue(string.Empty, executablePath);
+        return keyPath;
+    }
+
+    private static void DeleteTemporaryRegistryKey(string keyPath)
+    {
+        try
+        {
+            Registry.CurrentUser.DeleteSubKeyTree(keyPath, throwOnMissingSubKey: false);
+        }
+        catch
+        {
+        }
     }
 }

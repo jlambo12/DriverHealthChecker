@@ -67,6 +67,22 @@ public sealed class OfficialSupportChannelResolverTests
     }
 
     [Fact]
+    public void Resolve_PnpDeviceIdOverridesManufacturerFallback()
+    {
+        var resolver = BuildResolver(new StubInstalledOfficialAppCatalog());
+
+        var channel = resolver.Resolve(new DriverIdentity
+        {
+            PnpDeviceId = @"PCI\VEN_10DE&DEV_2704",
+            HardwareIds = { @"PCI\VEN_1002&DEV_164E" },
+            NormalizedManufacturer = "INTEL CORPORATION"
+        });
+
+        Assert.Equal(OfficialSupportChannelType.OfficialAppInstall, channel.Type);
+        Assert.Equal(DriverRules.NvidiaAppUrl, channel.Target);
+    }
+
+    [Fact]
     public void Resolve_UnknownVendor_ReturnsManualExplanation()
     {
         var resolver = BuildResolver(new StubInstalledOfficialAppCatalog());
@@ -80,6 +96,20 @@ public sealed class OfficialSupportChannelResolverTests
 
         Assert.Equal(OfficialSupportChannelType.ManualExplanation, channel.Type);
         Assert.Equal("Contoso Device", channel.DisplayName);
+    }
+
+    [Fact]
+    public void Resolve_DoesNotGuessVendorFromContainsLikeManufacturer()
+    {
+        var resolver = BuildResolver(new StubInstalledOfficialAppCatalog());
+
+        var channel = resolver.Resolve(new DriverIdentity
+        {
+            DisplayName = "Unknown Device",
+            NormalizedManufacturer = "SUPER NVIDIA COMPATIBLE DEVICES"
+        });
+
+        Assert.Equal(OfficialSupportChannelType.ManualExplanation, channel.Type);
     }
 
     private static OfficialSupportChannelResolver BuildResolver(IInstalledOfficialAppCatalog installedOfficialAppCatalog)
