@@ -7,6 +7,21 @@ internal enum DriverVerificationStatus
     UnableToVerifyReliably
 }
 
+internal enum VerificationSourceType
+{
+    OfficialApi,
+    OfficialWebsite,
+    LocalCache,
+    Unknown
+}
+
+internal enum VerificationFailureReasonType
+{
+    NoMatchingVendor,
+    VerifierNotImplemented,
+    VerificationFailed
+}
+
 internal enum OfficialSupportChannelType
 {
     InstalledOfficialApp,

@@ -15,9 +15,11 @@ internal sealed class AmdDriverVerifier : IVendorDriverVerifier
         return new DriverVerificationResult
         {
             Status = DriverVerificationStatus.UnableToVerifyReliably,
-            LatestKnownVersion = null,
-            VerificationSource = "AMD official verification (stub)",
+            LatestOfficialVersion = null,
+            VerificationSourceType = VerificationSourceType.Unknown,
+            SourceDetails = "AMD official verification (stub)",
             VerificationTimestamp = DateTimeOffset.UtcNow,
+            FailureReasonType = VerificationFailureReasonType.VerifierNotImplemented,
             FailureReason = "Official AMD verification is not implemented yet.",
             EvidenceSummary = "Routing selected AMD verifier, but the verifier is currently a stub."
         };

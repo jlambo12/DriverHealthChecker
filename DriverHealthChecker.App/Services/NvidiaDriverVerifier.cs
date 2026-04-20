@@ -15,9 +15,11 @@ internal sealed class NvidiaDriverVerifier : IVendorDriverVerifier
         return new DriverVerificationResult
         {
             Status = DriverVerificationStatus.UnableToVerifyReliably,
-            LatestKnownVersion = null,
-            VerificationSource = "NVIDIA official verification (stub)",
+            LatestOfficialVersion = null,
+            VerificationSourceType = VerificationSourceType.Unknown,
+            SourceDetails = "NVIDIA official verification (stub)",
             VerificationTimestamp = DateTimeOffset.UtcNow,
+            FailureReasonType = VerificationFailureReasonType.VerifierNotImplemented,
             FailureReason = "Official NVIDIA verification is not implemented yet.",
             EvidenceSummary = "Routing selected NVIDIA verifier, but the verifier is currently a stub."
         };

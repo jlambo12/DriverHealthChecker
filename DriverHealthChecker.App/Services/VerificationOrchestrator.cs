@@ -28,18 +28,25 @@ internal sealed class VerificationOrchestrator : IVerificationOrchestrator
     public DriverVerificationResult Verify(DriverIdentity identity)
     {
         var verifier = SelectVerifier(identity);
-        if (verifier != null)
-            return verifier.Verify(identity);
-
-        return new DriverVerificationResult
+        if (verifier == null)
         {
-            Status = DriverVerificationStatus.UnableToVerifyReliably,
-            LatestKnownVersion = null,
-            VerificationSource = "VerificationOrchestrator fallback",
-            VerificationTimestamp = DateTimeOffset.UtcNow,
-            FailureReason = "No vendor verifier is registered for this identity.",
-            EvidenceSummary = "Verification orchestrator could not match the identity to any registered vendor verifier."
-        };
+            return BuildFallbackResult(
+                VerificationFailureReasonType.NoMatchingVendor,
+                "No vendor verifier is registered for this identity.",
+                "Verification orchestrator could not match the identity to any registered vendor verifier.");
+        }
+
+        try
+        {
+            return verifier.Verify(identity);
+        }
+        catch (Exception ex)
+        {
+            return BuildFallbackResult(
+                VerificationFailureReasonType.VerificationFailed,
+                "Vendor verifier threw an exception before any real official verification completed.",
+                $"Verifier routing failed with exception type {ex.GetType().Name}.");
+        }
     }
 
     public IVendorDriverVerifier? SelectVerifier(DriverIdentity identity)
@@ -51,5 +58,23 @@ internal sealed class VerificationOrchestrator : IVerificationOrchestrator
         }
 
         return null;
+    }
+
+    private static DriverVerificationResult BuildFallbackResult(
+        VerificationFailureReasonType failureReasonType,
+        string failureReason,
+        string evidenceSummary)
+    {
+        return new DriverVerificationResult
+        {
+            Status = DriverVerificationStatus.UnableToVerifyReliably,
+            LatestOfficialVersion = null,
+            VerificationSourceType = VerificationSourceType.Unknown,
+            SourceDetails = "VerificationOrchestrator fallback",
+            VerificationTimestamp = DateTimeOffset.UtcNow,
+            FailureReasonType = failureReasonType,
+            FailureReason = failureReason,
+            EvidenceSummary = evidenceSummary
+        };
     }
 }
