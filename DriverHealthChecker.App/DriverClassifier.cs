@@ -59,11 +59,19 @@ internal sealed class DriverClassifier : IDriverClassifier
         foreach (var group in DriverRules.BlacklistGroups)
         {
             var matched = group.Terms.FirstOrDefault(n.Contains);
-            if (!string.IsNullOrWhiteSpace(matched))
+            if (string.IsNullOrWhiteSpace(matched))
             {
-                reason = $"Скрыто: {group.GroupName} ('{matched}')";
-                return true;
+                continue;
             }
+
+            // "Audio CoProcessor Device" should stay visible as an external audio candidate.
+            if (matched == "processor" && n.Contains("audio"))
+            {
+                continue;
+            }
+
+            reason = $"Скрыто: {group.GroupName} ('{matched}')";
+            return true;
         }
 
         if (n.Contains("nvidia") && n.Contains("audio"))

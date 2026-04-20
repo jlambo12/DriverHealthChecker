@@ -13,6 +13,7 @@ public class DriverClassifierTests
     [InlineData("Samsung NVMe Controller", "Samsung", "Storage")]
     [InlineData("Realtek(R) Audio", "Realtek", "AudioMain")]
     [InlineData("Focusrite USB Audio", "Focusrite", "AudioExternal")]
+    [InlineData("Audio CoProcessor Device", "Contoso", "AudioExternal")]
     public void TryClassify_ShouldReturnExpectedCategory(string name, string manufacturer, string expectedCategory)
     {
         var result = _classifier.TryClassify(name, manufacturer, out var category, out var reason);
