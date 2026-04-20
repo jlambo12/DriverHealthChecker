@@ -80,6 +80,17 @@ public class DriverClassifierTests
         Assert.Equal(DriverCategory.Unknown, category);
     }
 
+
+    [Fact]
+    public void TryClassify_AudioCoProcessor_ShouldNotBeBlacklistedAsProcessor()
+    {
+        var result = _classifier.TryClassify("Audio CoProcessor Device", "Contoso", out var category, out var reason);
+
+        Assert.True(result);
+        Assert.Equal(DriverCategory.AudioExternal, category);
+        Assert.DoesNotContain("Скрыто:", reason);
+    }
+
     [Fact]
     public void TryClassify_ShouldKeepRulePriority_BlacklistBeforeGpu()
     {
