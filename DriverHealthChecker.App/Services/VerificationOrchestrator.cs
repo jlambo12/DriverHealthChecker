@@ -4,38 +4,29 @@ using System.Linq;
 
 namespace DriverHealthChecker.App;
 
-internal interface IOfficialDriverVerifier
-{
-    DriverVerificationResult Verify(DriverIdentity identity);
-}
-
 internal interface IVendorDriverVerifier
 {
     bool CanHandle(DriverIdentity identity);
     DriverVerificationResult Verify(DriverIdentity identity);
 }
 
-internal interface IVerificationOrchestrator : IOfficialDriverVerifier
+internal interface IVerificationOrchestrator
 {
+    DriverVerificationResult Verify(DriverIdentity identity);
     IVendorDriverVerifier? SelectVerifier(DriverIdentity identity);
 }
 
 internal sealed class VerificationOrchestrator : IVerificationOrchestrator
 {
-    private readonly IOfficialSupportChannelResolver _officialSupportChannelResolver;
     private readonly IReadOnlyList<IVendorDriverVerifier> _vendorDriverVerifiers;
 
-    public VerificationOrchestrator(
-        IOfficialSupportChannelResolver officialSupportChannelResolver,
-        IEnumerable<IVendorDriverVerifier> vendorDriverVerifiers)
+    public VerificationOrchestrator(IEnumerable<IVendorDriverVerifier> vendorDriverVerifiers)
     {
-        _officialSupportChannelResolver = officialSupportChannelResolver;
         _vendorDriverVerifiers = vendorDriverVerifiers.ToList();
     }
 
     public DriverVerificationResult Verify(DriverIdentity identity)
     {
-        var supportChannel = _officialSupportChannelResolver.Resolve(identity);
         var verifier = SelectVerifier(identity);
         if (verifier != null)
             return verifier.Verify(identity);
@@ -44,10 +35,10 @@ internal sealed class VerificationOrchestrator : IVerificationOrchestrator
         {
             Status = DriverVerificationStatus.UnableToVerifyReliably,
             LatestKnownVersion = null,
-            VerificationSource = BuildFallbackSource(supportChannel),
+            VerificationSource = "VerificationOrchestrator fallback",
             VerificationTimestamp = DateTimeOffset.UtcNow,
             FailureReason = "No vendor verifier is registered for this identity.",
-            EvidenceSummary = $"Resolved support channel: {supportChannel.Type}. Verification routing stopped before any official source call."
+            EvidenceSummary = "Verification orchestrator could not match the identity to any registered vendor verifier."
         };
     }
 
@@ -60,13 +51,5 @@ internal sealed class VerificationOrchestrator : IVerificationOrchestrator
         }
 
         return null;
-    }
-
-    private static string BuildFallbackSource(OfficialSupportChannel supportChannel)
-    {
-        if (!string.IsNullOrWhiteSpace(supportChannel.DisplayName))
-            return supportChannel.DisplayName;
-
-        return $"OfficialSupportChannel:{supportChannel.Type}";
     }
 }
