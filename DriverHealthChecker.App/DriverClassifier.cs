@@ -56,7 +56,7 @@ internal sealed class DriverClassifier : IDriverClassifier
     {
         foreach (var group in DriverRules.BlacklistGroups)
         {
-            var matched = group.Terms.FirstOrDefault(n.Contains);
+            var matched = group.Terms.FirstOrDefault(term => info.Name.Contains(term));
             if (string.IsNullOrWhiteSpace(matched))
             {
                 continue;

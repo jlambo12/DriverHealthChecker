@@ -35,6 +35,16 @@ public class DriverClassifierTests
         Assert.StartsWith("Скрыто:", reason);
     }
 
+
+    [Fact]
+    public void TryClassify_BlacklistedDevice_ShouldIncludeMatchedBlacklistTermInReason()
+    {
+        var result = _classifier.TryClassify("WAN Miniport (SSTP)", "Microsoft", out _, out var reason);
+
+        Assert.False(result);
+        Assert.Contains("wan miniport", reason);
+    }
+
     [Fact]
     public void TryClassify_UnknownDevice_ShouldReturnFalse()
     {
