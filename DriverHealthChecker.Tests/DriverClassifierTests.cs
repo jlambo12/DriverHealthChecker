@@ -8,13 +8,13 @@ public class DriverClassifierTests
     private readonly IDriverClassifier _classifier = new DriverClassifier();
 
     [Theory]
-    [InlineData("NVIDIA GeForce RTX 4080", "NVIDIA", "GPU")]
-    [InlineData("Intel(R) Wi-Fi 6E AX211", "Intel", "Network")]
-    [InlineData("Samsung NVMe Controller", "Samsung", "Storage")]
-    [InlineData("Realtek(R) Audio", "Realtek", "AudioMain")]
-    [InlineData("Focusrite USB Audio", "Focusrite", "AudioExternal")]
-    [InlineData("Audio CoProcessor Device", "Contoso", "AudioExternal")]
-    public void TryClassify_ShouldReturnExpectedCategory(string name, string manufacturer, string expectedCategory)
+    [InlineData("NVIDIA GeForce RTX 4080", "NVIDIA", DriverCategory.Gpu)]
+    [InlineData("Intel(R) Wi-Fi 6E AX211", "Intel", DriverCategory.Network)]
+    [InlineData("Samsung NVMe Controller", "Samsung", DriverCategory.Storage)]
+    [InlineData("Realtek(R) Audio", "Realtek", DriverCategory.AudioMain)]
+    [InlineData("Focusrite USB Audio", "Focusrite", DriverCategory.AudioExternal)]
+    [InlineData("Audio CoProcessor Device", "Contoso", DriverCategory.AudioExternal)]
+    public void TryClassify_ShouldReturnExpectedCategory(string name, string manufacturer, DriverCategory expectedCategory)
     {
         var result = _classifier.TryClassify(name, manufacturer, out var category, out var reason);
 
@@ -33,6 +33,16 @@ public class DriverClassifierTests
 
         Assert.False(result);
         Assert.StartsWith("Скрыто:", reason);
+    }
+
+
+    [Fact]
+    public void TryClassify_BlacklistedDevice_ShouldIncludeMatchedBlacklistTermInReason()
+    {
+        var result = _classifier.TryClassify("WAN Miniport (SSTP)", "Microsoft", out _, out var reason);
+
+        Assert.False(result);
+        Assert.Contains("wan miniport", reason);
     }
 
     [Fact]
@@ -68,6 +78,17 @@ public class DriverClassifierTests
 
         Assert.False(result);
         Assert.Equal(DriverCategory.Unknown, category);
+    }
+
+
+    [Fact]
+    public void TryClassify_AudioCoProcessor_ShouldNotBeBlacklistedAsProcessor()
+    {
+        var result = _classifier.TryClassify("Audio CoProcessor Device", "Contoso", out var category, out var reason);
+
+        Assert.True(result);
+        Assert.Equal(DriverCategory.AudioExternal, category);
+        Assert.DoesNotContain("Скрыто:", reason);
     }
 
     [Fact]
