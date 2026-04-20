@@ -5,109 +5,108 @@ namespace DriverHealthChecker.App;
 
 internal static class DriverIdentityVendorMatcher
 {
-    private static readonly HashSet<string> NvidiaManufacturers = new(StringComparer.Ordinal)
+    private const string NvidiaVendor = "NVIDIA";
+    private const string IntelVendor = "INTEL";
+    private const string AmdVendor = "AMD";
+
+    private static readonly IReadOnlyDictionary<string, string> ManufacturerToVendor = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        "NVIDIA",
-        "NVIDIA CORPORATION"
+        ["NVIDIA"] = NvidiaVendor,
+        ["NVIDIA CORPORATION"] = NvidiaVendor,
+        ["INTEL"] = IntelVendor,
+        ["INTEL CORPORATION"] = IntelVendor,
+        ["AMD"] = AmdVendor,
+        ["ADVANCED MICRO DEVICES"] = AmdVendor,
+        ["ADVANCED MICRO DEVICES, INC."] = AmdVendor,
+        ["ATI TECHNOLOGIES INC."] = AmdVendor,
+        ["ATI TECHNOLOGIES INC"] = AmdVendor
     };
 
-    private static readonly HashSet<string> IntelManufacturers = new(StringComparer.Ordinal)
+    private static readonly VendorIdentifierMapping[] VendorIdMappings =
     {
-        "INTEL",
-        "INTEL CORPORATION"
+        new("PCI\\VEN_10DE", NvidiaVendor),
+        new("USB\\VID_0955", NvidiaVendor),
+        new("PCI\\VEN_8086", IntelVendor),
+        new("USB\\VID_8087", IntelVendor),
+        new("USB\\VID_8086", IntelVendor),
+        new("PCI\\VEN_1002", AmdVendor),
+        new("PCI\\VEN_1022", AmdVendor)
     };
 
-    private static readonly HashSet<string> AmdManufacturers = new(StringComparer.Ordinal)
-    {
-        "AMD",
-        "ADVANCED MICRO DEVICES",
-        "ADVANCED MICRO DEVICES, INC.",
-        "ATI TECHNOLOGIES INC.",
-        "ATI TECHNOLOGIES INC"
-    };
+    public static bool IsNvidia(DriverIdentity identity) => IsVendor(identity, NvidiaVendor);
 
-    private static readonly string[] NvidiaVendorIdPrefixes =
-    {
-        "PCI\\VEN_10DE",
-        "USB\\VID_0955"
-    };
+    public static bool IsIntel(DriverIdentity identity) => IsVendor(identity, IntelVendor);
 
-    private static readonly string[] IntelVendorIdPrefixes =
-    {
-        "PCI\\VEN_8086",
-        "USB\\VID_8087",
-        "USB\\VID_8086"
-    };
+    public static bool IsAmd(DriverIdentity identity) => IsVendor(identity, AmdVendor);
 
-    private static readonly string[] AmdVendorIdPrefixes =
+    internal static bool TryResolveVendor(DriverIdentity identity, out string vendor)
     {
-        "PCI\\VEN_1002",
-        "PCI\\VEN_1022"
-    };
+        if (TryResolveVendorFromIdentifier(identity.PnpDeviceId, out vendor))
+            return true;
 
-    public static bool IsNvidia(DriverIdentity identity)
-    {
-        return MatchesManufacturer(identity, NvidiaManufacturers)
-               || MatchesVendorId(identity, NvidiaVendorIdPrefixes);
+        if (TryResolveVendorFromIdentifiers(identity.HardwareIds, out vendor))
+            return true;
+
+        if (TryResolveVendorFromIdentifiers(identity.CompatibleIds, out vendor))
+            return true;
+
+        return TryResolveVendorFromManufacturer(identity.NormalizedManufacturer, out vendor);
     }
 
-    public static bool IsIntel(DriverIdentity identity)
+    private static bool IsVendor(DriverIdentity identity, string vendor)
     {
-        return MatchesManufacturer(identity, IntelManufacturers)
-               || MatchesVendorId(identity, IntelVendorIdPrefixes);
+        return TryResolveVendor(identity, out var resolvedVendor)
+               && string.Equals(resolvedVendor, vendor, StringComparison.Ordinal);
     }
 
-    public static bool IsAmd(DriverIdentity identity)
+    private static bool TryResolveVendorFromIdentifiers(IEnumerable<string> candidates, out string vendor)
     {
-        return MatchesManufacturer(identity, AmdManufacturers)
-               || MatchesVendorId(identity, AmdVendorIdPrefixes);
-    }
-
-    private static bool MatchesManufacturer(DriverIdentity identity, HashSet<string> supportedManufacturers)
-    {
-        foreach (var candidate in EnumerateManufacturerCandidates(identity))
+        foreach (var candidate in candidates)
         {
-            var normalizedCandidate = Normalize(candidate);
-            if (!string.IsNullOrWhiteSpace(normalizedCandidate) && supportedManufacturers.Contains(normalizedCandidate))
+            if (TryResolveVendorFromIdentifier(candidate, out vendor))
                 return true;
         }
 
+        vendor = string.Empty;
         return false;
     }
 
-    private static bool MatchesVendorId(DriverIdentity identity, IReadOnlyList<string> vendorIdPrefixes)
+    private static bool TryResolveVendorFromIdentifier(string? candidate, out string vendor)
     {
-        foreach (var candidate in EnumerateIdentifierCandidates(identity))
+        var normalizedCandidate = Normalize(candidate);
+        if (string.IsNullOrWhiteSpace(normalizedCandidate))
         {
-            var normalizedCandidate = Normalize(candidate);
-            if (string.IsNullOrWhiteSpace(normalizedCandidate))
-                continue;
+            vendor = string.Empty;
+            return false;
+        }
 
-            foreach (var prefix in vendorIdPrefixes)
+        foreach (var mapping in VendorIdMappings)
+        {
+            if (MatchesIdentifier(normalizedCandidate, mapping.IdentifierToken))
             {
-                if (normalizedCandidate.StartsWith(prefix, StringComparison.Ordinal))
-                    return true;
+                vendor = mapping.Vendor;
+                return true;
             }
         }
 
+        vendor = string.Empty;
         return false;
     }
 
-    private static IEnumerable<string?> EnumerateManufacturerCandidates(DriverIdentity identity)
+    private static bool TryResolveVendorFromManufacturer(string? normalizedManufacturer, out string vendor)
     {
-        yield return identity.NormalizedManufacturer;
-        yield return identity.Manufacturer;
+        var manufacturer = Normalize(normalizedManufacturer);
+        if (ManufacturerToVendor.TryGetValue(manufacturer, out vendor!))
+            return true;
+
+        vendor = string.Empty;
+        return false;
     }
 
-    private static IEnumerable<string?> EnumerateIdentifierCandidates(DriverIdentity identity)
+    private static bool MatchesIdentifier(string candidate, string identifierToken)
     {
-        yield return identity.PnpDeviceId;
-
-        foreach (var hardwareId in identity.HardwareIds)
-            yield return hardwareId;
-
-        foreach (var compatibleId in identity.CompatibleIds)
-            yield return compatibleId;
+        return string.Equals(candidate, identifierToken, StringComparison.Ordinal)
+               || candidate.StartsWith(identifierToken + "&", StringComparison.Ordinal);
     }
 
     private static string Normalize(string? value)
@@ -118,3 +117,5 @@ internal static class DriverIdentityVendorMatcher
         return value.Trim().ToUpperInvariant();
     }
 }
+
+internal readonly record struct VendorIdentifierMapping(string IdentifierToken, string Vendor);
