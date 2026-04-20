@@ -37,7 +37,10 @@ internal sealed class DriverScanMapper : IDriverScanMapper
         {
             try
             {
-                if (!_driverClassifier.TryClassify(record.Name, record.Manufacturer, out var category, out var reason))
+                var normalizedName = NormalizeDeviceName(record.Name);
+                var normalizedManufacturer = NormalizeManufacturer(record.Manufacturer);
+
+                if (!_driverClassifier.TryClassify(normalizedName, normalizedManufacturer, out var category, out var reason))
                 {
                     if (!string.IsNullOrWhiteSpace(reason))
                         hiddenDrivers.Add(BuildHiddenItem(record, reason));
@@ -47,16 +50,16 @@ internal sealed class DriverScanMapper : IDriverScanMapper
                 }
 
                 var action = _officialActionResolver.Resolve(
-                    record.Name,
-                    record.Manufacturer,
+                    normalizedName,
+                    normalizedManufacturer,
                     category,
                     profile?.Manufacturer,
                     profile?.IsLaptop == true);
 
                 allDrivers.Add(new DriverItem
                 {
-                    Name = CleanDeviceName(record.Name),
-                    Manufacturer = CleanManufacturer(record.Manufacturer),
+                    Name = CleanDeviceName(normalizedName),
+                    Manufacturer = CleanManufacturer(normalizedManufacturer),
                     Version = string.IsNullOrWhiteSpace(record.Version) ? "-" : record.Version,
                     Date = FormatDate(record.RawDate),
                     CategoryKind = category,
@@ -86,10 +89,13 @@ internal sealed class DriverScanMapper : IDriverScanMapper
 
     private static DriverItem BuildHiddenItem(ScannedDriverRecord record, string reason)
     {
+        var normalizedName = NormalizeDeviceName(record.Name);
+        var normalizedManufacturer = NormalizeManufacturer(record.Manufacturer);
+
         return new DriverItem
         {
-            Name = CleanDeviceName(record.Name),
-            Manufacturer = CleanManufacturer(record.Manufacturer),
+            Name = CleanDeviceName(normalizedName),
+            Manufacturer = CleanManufacturer(normalizedManufacturer),
             Version = string.IsNullOrWhiteSpace(record.Version) ? "-" : record.Version,
             Date = FormatDate(record.RawDate),
             CategoryKind = DriverCategory.HiddenSystem,
@@ -104,16 +110,35 @@ internal sealed class DriverScanMapper : IDriverScanMapper
         };
     }
 
-    private static string CleanDeviceName(string name) => name.Trim();
+    private static string CleanDeviceName(string name) => NormalizeDeviceName(name);
 
     private static string CleanManufacturer(string? manufacturer)
     {
-        if (string.IsNullOrWhiteSpace(manufacturer))
+        var normalizedManufacturer = NormalizeManufacturer(manufacturer);
+        if (string.IsNullOrWhiteSpace(normalizedManufacturer))
             return "-";
 
-        return manufacturer.Replace("Corporation", string.Empty)
+        return normalizedManufacturer.Replace("Corporation", string.Empty)
             .Replace("(Standard system devices)", string.Empty)
             .Trim();
+    }
+
+    private static string NormalizeDeviceName(string? name)
+    {
+        return NormalizeBasicText(name);
+    }
+
+    private static string NormalizeManufacturer(string? manufacturer)
+    {
+        return NormalizeBasicText(manufacturer);
+    }
+
+    private static string NormalizeBasicText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        return string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
 
     private static string FormatDate(string? rawDate)
