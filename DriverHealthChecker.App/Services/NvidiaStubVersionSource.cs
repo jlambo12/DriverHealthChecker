@@ -1,15 +1,8 @@
-using System;
 using System.Collections.Generic;
 
 namespace DriverHealthChecker.App;
 
-internal interface INvidiaVersionSource
-{
-    string SourceDetails { get; }
-    bool TryGetLatestVersion(string deviceId, out string latestOfficialVersion);
-}
-
-internal sealed class NvidiaStubVersionSource : INvidiaVersionSource
+internal sealed class NvidiaStubVersionSource : IVendorVersionSource
 {
     private static readonly IReadOnlyDictionary<string, string> DeviceIdToLatestVersion = new Dictionary<string, string>(StringComparer.Ordinal)
     {
