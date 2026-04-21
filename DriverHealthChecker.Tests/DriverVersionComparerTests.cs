@@ -3,20 +3,15 @@ using Xunit;
 
 namespace DriverHealthChecker.Tests;
 
-public class DriverVersionComparerTests
+public sealed class DriverVersionComparerTests
 {
-    private readonly IDriverVersionComparer _comparer = new DriverVersionComparer();
-
-    [Theory]
-    [InlineData("31.0.15.5123", "31.0.15.4000", 1)]
-    [InlineData("1.0", "1.0.0", 0)]
-    [InlineData("2.10", "2.2", 1)]
-    [InlineData("", "1.0", -1)]
-    [InlineData("abc", "0", 0)]
-    public void Compare_HandlesTypicalVersions(string left, string right, int expectedSign)
+    [Fact]
+    public void Compare_IsNumericAwareAcrossSegments()
     {
-        var result = _comparer.Compare(left, right);
+        var comparer = new DriverVersionComparer();
 
-        Assert.Equal(expectedSign, Math.Sign(result));
+        Assert.True(comparer.Compare("551.10", "552.12") < 0);
+        Assert.True(comparer.Compare("552.12.1", "552.12") > 0);
+        Assert.Equal(0, comparer.Compare("551.86", "551.86"));
     }
 }

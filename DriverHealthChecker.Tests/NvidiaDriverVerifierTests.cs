@@ -9,7 +9,7 @@ public sealed class NvidiaDriverVerifierTests
     public void Verify_UsesInjectedStubSource()
     {
         var source = new FakeNvidiaVersionSource("600.10", "Injected NVIDIA source");
-        var verifier = new NvidiaDriverVerifier(new DriverVersionComparer(), source);
+        var verifier = new NvidiaDriverVerifier(CreateVerificationFlow(), source);
 
         var result = verifier.Verify(new DriverIdentity
         {
@@ -110,7 +110,14 @@ public sealed class NvidiaDriverVerifierTests
         Assert.Contains("Could not extract", result.FailureReason);
     }
 
-    private sealed class FakeNvidiaVersionSource : INvidiaVersionSource
+    private static VendorDriverVerificationFlow CreateVerificationFlow()
+    {
+        return new VendorDriverVerificationFlow(
+            new DriverIdentityTokenExtractor(),
+            new DriverVersionComparer());
+    }
+
+    private sealed class FakeNvidiaVersionSource : IVendorVersionSource
     {
         private readonly string _latestVersion;
 
