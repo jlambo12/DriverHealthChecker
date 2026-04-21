@@ -66,6 +66,60 @@ public class DriverScanMapperTests
         Assert.Equal("Intel", result.SelectedDrivers[0].Manufacturer);
     }
 
+    [Fact]
+    public void Build_InvokesRegistryAndStoresVerificationResult()
+    {
+        var probeVerifier = new ProbeVendorDriverVerifier();
+        var registry = new DriverVerifierRegistry([probeVerifier]);
+        var mapper = new DriverScanMapper(
+            new StubClassifier(classify: true),
+            new StubActionResolver(),
+            new StubSelectionService(),
+            registry);
+
+        var result = mapper.Build(
+            [new ScannedDriverRecord
+            {
+                Name = "Intel Wi-Fi",
+                Manufacturer = "Intel",
+                Version = "1.0.0",
+                PnpDeviceId = @"PCI\VEN_8086&DEV_1234"
+            }],
+            profile: null);
+
+        Assert.Single(result.SelectedDrivers);
+        Assert.Single(result.VerificationObservations);
+        Assert.Equal(1, probeVerifier.VerifyCallCount);
+        Assert.Equal("Intel Wi-Fi", result.VerificationObservations[0].DriverName);
+        Assert.Equal(DriverVerificationStatus.UpToDate, result.VerificationObservations[0].Result.Status);
+    }
+
+    [Fact]
+    public void Build_VerificationFailureDoesNotBreakExistingFlow()
+    {
+        var registry = new DriverVerifierRegistry([new ThrowingVendorDriverVerifier()]);
+        var mapper = new DriverScanMapper(
+            new StubClassifier(classify: true),
+            new StubActionResolver(),
+            new StubSelectionService(),
+            registry);
+
+        var result = mapper.Build(
+            [new ScannedDriverRecord
+            {
+                Name = "Intel Wi-Fi",
+                Manufacturer = "Intel",
+                Version = "1.0.0",
+                PnpDeviceId = @"PCI\VEN_8086&DEV_1234"
+            }],
+            profile: null);
+
+        Assert.Single(result.SelectedDrivers);
+        Assert.Empty(result.HiddenDrivers);
+        Assert.Empty(result.VerificationObservations);
+        Assert.Equal("Intel Tool", result.SelectedDrivers[0].ButtonText);
+    }
+
     private sealed class StubClassifier : IDriverClassifier
     {
         private readonly bool _classify;
@@ -126,5 +180,36 @@ public class DriverScanMapperTests
     private sealed class StubSelectionService : IDriverSelectionService
     {
         public List<DriverItem> SelectBestDrivers(List<DriverItem> drivers) => drivers;
+    }
+
+    private sealed class ProbeVendorDriverVerifier : IVendorDriverVerifier
+    {
+        public int VerifyCallCount { get; private set; }
+
+        public bool CanHandle(DriverIdentity identity) => true;
+
+        public DriverVerificationResult Verify(DriverIdentity identity)
+        {
+            VerifyCallCount++;
+
+            return new DriverVerificationResult
+            {
+                Status = DriverVerificationStatus.UpToDate,
+                LatestOfficialVersion = identity.InstalledVersion,
+                VerificationSourceType = VerificationSourceType.OfficialApi,
+                SourceDetails = "Probe verifier",
+                VerificationTimestamp = System.DateTimeOffset.UtcNow
+            };
+        }
+    }
+
+    private sealed class ThrowingVendorDriverVerifier : IVendorDriverVerifier
+    {
+        public bool CanHandle(DriverIdentity identity) => true;
+
+        public DriverVerificationResult Verify(DriverIdentity identity)
+        {
+            throw new System.InvalidOperationException("verification failed");
+        }
     }
 }
