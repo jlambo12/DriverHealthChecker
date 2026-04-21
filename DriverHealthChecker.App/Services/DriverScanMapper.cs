@@ -94,12 +94,13 @@ internal sealed class DriverScanMapper : IDriverScanMapper
             }
             catch (Exception ex)
             {
-                AppLogger.Error("Не удалось сопоставить драйвер в DriverScanMapper.", ex);
+                SafeLogError("Не удалось сопоставить драйвер в DriverScanMapper.", ex);
             }
         }
 
         var selected = _driverSelectionService.SelectBestDrivers(allDrivers);
-        AppLogger.Info($"DriverScanMapper completed. source={records.Count}, mapped={mappedCount}, skipped={skippedCount}, selected={selected.Count}, hidden={hiddenDrivers.Count}.");
+        SafeLogInfo($"DriverScanMapper completed. source={records.Count}, mapped={mappedCount}, skipped={skippedCount}, selected={selected.Count}, hidden={hiddenDrivers.Count}.");
+        LogVerificationAggregate(allDrivers.Count, verificationObservations.Count);
 
         return new DriverScanBuildResult
         {
@@ -142,7 +143,7 @@ internal sealed class DriverScanMapper : IDriverScanMapper
         }
         catch (Exception ex)
         {
-            AppLogger.Error(
+            SafeLogError(
                 $"Shadow verification failed for device={identity.DisplayName}.",
                 ex);
         }
@@ -189,12 +190,40 @@ internal sealed class DriverScanMapper : IDriverScanMapper
             }
 
             _validationMismatch++;
-            AppLogger.Info(
+            SafeLogInfo(
                 $"Verification mismatch. vendorId={observation.VendorId ?? "-"}, deviceId={observation.DeviceId ?? "-"}, legacyStatus={observation.LegacyStatus}, verificationStatus={observation.VerificationStatus}.");
         }
         catch (Exception ex)
         {
-            AppLogger.Error("Shadow verification validation failed.", ex);
+            SafeLogError("Shadow verification validation failed.", ex);
+        }
+    }
+
+    private void LogVerificationAggregate(int totalDrivers, int withVerification)
+    {
+        SafeLogInfo(
+            $"Verification aggregate. totalDrivers={totalDrivers}, withVerification={withVerification}, mismatches={_validationMismatch}.");
+    }
+
+    private void SafeLogInfo(string message)
+    {
+        try
+        {
+            AppLogger.Info(message);
+        }
+        catch
+        {
+        }
+    }
+
+    private void SafeLogError(string message, Exception? ex = null)
+    {
+        try
+        {
+            AppLogger.Error(message, ex);
+        }
+        catch
+        {
         }
     }
 
