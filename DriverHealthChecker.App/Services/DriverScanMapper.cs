@@ -16,6 +16,14 @@ internal sealed class DriverScanMapper : IDriverScanMapper
     private readonly IOfficialActionResolver _officialActionResolver;
     private readonly IDriverSelectionService _driverSelectionService;
     private readonly DriverVerifierRegistry? _driverVerifierRegistry;
+    private readonly IDriverIdentityTokenExtractor _driverIdentityTokenExtractor;
+    private int _validationTotal;
+    private int _validationMatch;
+    private int _validationMismatch;
+
+    internal int ValidationTotalCount => _validationTotal;
+    internal int ValidationMatchCount => _validationMatch;
+    internal int ValidationMismatchCount => _validationMismatch;
 
     public DriverScanMapper(
         IDriverClassifier driverClassifier,
@@ -27,10 +35,15 @@ internal sealed class DriverScanMapper : IDriverScanMapper
         _officialActionResolver = officialActionResolver;
         _driverSelectionService = driverSelectionService;
         _driverVerifierRegistry = driverVerifierRegistry;
+        _driverIdentityTokenExtractor = new DriverIdentityTokenExtractor();
     }
 
     public DriverScanBuildResult Build(IReadOnlyList<ScannedDriverRecord> records, DeviceProfile? profile)
     {
+        _validationTotal = 0;
+        _validationMatch = 0;
+        _validationMismatch = 0;
+
         var allDrivers = new List<DriverItem>();
         var hiddenDrivers = new List<DriverItem>();
         var verificationObservations = new List<DriverVerificationObservation>();
@@ -60,9 +73,7 @@ internal sealed class DriverScanMapper : IDriverScanMapper
                     profile?.Manufacturer,
                     profile?.IsLaptop == true);
 
-                RunShadowVerification(record, normalizedName, normalizedManufacturer, verificationObservations);
-
-                allDrivers.Add(new DriverItem
+                var driverItem = new DriverItem
                 {
                     Name = CleanDeviceName(normalizedName),
                     Manufacturer = CleanManufacturer(normalizedManufacturer),
@@ -74,7 +85,11 @@ internal sealed class DriverScanMapper : IDriverScanMapper
                     ButtonText = action.ButtonText,
                     DetectionReason = reason,
                     ButtonTooltip = $"{action.Tooltip} · Причина: {reason}"
-                });
+                };
+
+                RunShadowVerification(record, driverItem, normalizedName, normalizedManufacturer, verificationObservations);
+
+                allDrivers.Add(driverItem);
                 mappedCount++;
             }
             catch (Exception ex)
@@ -96,6 +111,7 @@ internal sealed class DriverScanMapper : IDriverScanMapper
 
     private void RunShadowVerification(
         ScannedDriverRecord record,
+        DriverItem driverItem,
         string normalizedName,
         string normalizedManufacturer,
         List<DriverVerificationObservation> verificationObservations)
@@ -108,15 +124,21 @@ internal sealed class DriverScanMapper : IDriverScanMapper
         try
         {
             var verificationResult = _driverVerifierRegistry.Verify(identity);
-            verificationObservations.Add(new DriverVerificationObservation
+            _driverIdentityTokenExtractor.TryExtract(identity, out var tokens);
+            var observation = new DriverVerificationObservation
             {
+                DriverKey = BuildDriverKey(driverItem),
                 DriverName = identity.DisplayName,
                 Manufacturer = identity.Manufacturer,
-                Result = verificationResult
-            });
+                VendorId = string.IsNullOrWhiteSpace(tokens.VendorId) ? null : tokens.VendorId,
+                DeviceId = string.IsNullOrWhiteSpace(tokens.DeviceId) ? null : tokens.DeviceId,
+                Result = verificationResult,
+                LegacyStatus = driverItem.StatusKind,
+                VerificationStatus = verificationResult.Status
+            };
 
-            AppLogger.Info(
-                $"Shadow verification completed. device={identity.DisplayName}, source={verificationResult.SourceDetails}, status={verificationResult.Status}, failure={verificationResult.FailureReasonType?.ToString() ?? "None"}.");
+            ValidateObservation(observation);
+            verificationObservations.Add(observation);
         }
         catch (Exception ex)
         {
@@ -146,6 +168,44 @@ internal sealed class DriverScanMapper : IDriverScanMapper
             DriverSignerName = record.DriverSignerName,
             DriverClass = record.DriverClass,
             ClassGuid = record.ClassGuid
+        };
+    }
+
+    private static string BuildDriverKey(DriverItem driverItem)
+    {
+        return $"{DriverTextMapper.ToCategoryCode(driverItem.CategoryKind)}|{driverItem.Name}";
+    }
+
+    private void ValidateObservation(DriverVerificationObservation observation)
+    {
+        try
+        {
+            _validationTotal++;
+            observation.IsMatch = IsLogicalMatch(observation.LegacyStatus, observation.VerificationStatus);
+            if (observation.IsMatch)
+            {
+                _validationMatch++;
+                return;
+            }
+
+            _validationMismatch++;
+            AppLogger.Info(
+                $"Verification mismatch. vendorId={observation.VendorId ?? "-"}, deviceId={observation.DeviceId ?? "-"}, legacyStatus={observation.LegacyStatus}, verificationStatus={observation.VerificationStatus}.");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Shadow verification validation failed.", ex);
+        }
+    }
+
+    private static bool IsLogicalMatch(DriverHealthStatus legacyStatus, DriverVerificationStatus verificationStatus)
+    {
+        return legacyStatus switch
+        {
+            DriverHealthStatus.UpToDate => verificationStatus == DriverVerificationStatus.UpToDate,
+            DriverHealthStatus.NeedsAttention => verificationStatus == DriverVerificationStatus.UpdateAvailable,
+            DriverHealthStatus.NeedsReview => verificationStatus == DriverVerificationStatus.UnableToVerifyReliably,
+            _ => false
         };
     }
 
