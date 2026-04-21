@@ -92,6 +92,9 @@ public class DriverScanMapperTests
         Assert.Equal(1, probeVerifier.VerifyCallCount);
         Assert.Equal("Intel Wi-Fi", result.VerificationObservations[0].DriverName);
         Assert.Equal(DriverVerificationStatus.UpToDate, result.VerificationObservations[0].Result.Status);
+        Assert.Equal(DriverHealthStatus.NeedsReview, result.VerificationObservations[0].LegacyStatus);
+        Assert.Equal(DriverVerificationStatus.UpToDate, result.VerificationObservations[0].VerificationStatus);
+        Assert.False(result.VerificationObservations[0].IsMatch);
     }
 
     [Fact]
@@ -118,6 +121,72 @@ public class DriverScanMapperTests
         Assert.Empty(result.HiddenDrivers);
         Assert.Empty(result.VerificationObservations);
         Assert.Equal("Intel Tool", result.SelectedDrivers[0].ButtonText);
+    }
+
+    [Fact]
+    public void Build_WhenLegacyAndVerificationStatusesMatch_StoresMatchObservation()
+    {
+        var probeVerifier = new ProbeVendorDriverVerifier
+        {
+            ResultStatus = DriverVerificationStatus.UnableToVerifyReliably
+        };
+        var registry = new DriverVerifierRegistry([probeVerifier]);
+        var mapper = new DriverScanMapper(
+            new StubClassifier(classify: true),
+            new StubActionResolver(),
+            new StubSelectionService(),
+            registry);
+
+        var result = mapper.Build(
+            [new ScannedDriverRecord
+            {
+                Name = "Intel Wi-Fi",
+                Manufacturer = "Intel",
+                Version = "1.0.0",
+                PnpDeviceId = @"PCI\VEN_8086&DEV_1234"
+            }],
+            profile: null);
+
+        var observation = Assert.Single(result.VerificationObservations);
+        Assert.Equal(DriverHealthStatus.NeedsReview, observation.LegacyStatus);
+        Assert.Equal(DriverVerificationStatus.UnableToVerifyReliably, observation.VerificationStatus);
+        Assert.True(observation.IsMatch);
+        Assert.Equal(1, mapper.ValidationTotalCount);
+        Assert.Equal(1, mapper.ValidationMatchCount);
+        Assert.Equal(0, mapper.ValidationMismatchCount);
+    }
+
+    [Fact]
+    public void Build_WhenLegacyAndVerificationStatusesMismatch_IncrementsMismatchCounter()
+    {
+        var probeVerifier = new ProbeVendorDriverVerifier
+        {
+            ResultStatus = DriverVerificationStatus.UpToDate
+        };
+        var registry = new DriverVerifierRegistry([probeVerifier]);
+        var mapper = new DriverScanMapper(
+            new StubClassifier(classify: true),
+            new StubActionResolver(),
+            new StubSelectionService(),
+            registry);
+
+        var result = mapper.Build(
+            [new ScannedDriverRecord
+            {
+                Name = "Intel Wi-Fi",
+                Manufacturer = "Intel",
+                Version = "1.0.0",
+                PnpDeviceId = @"PCI\VEN_8086&DEV_1234"
+            }],
+            profile: null);
+
+        var observation = Assert.Single(result.VerificationObservations);
+        Assert.Equal(DriverHealthStatus.NeedsReview, observation.LegacyStatus);
+        Assert.Equal(DriverVerificationStatus.UpToDate, observation.VerificationStatus);
+        Assert.False(observation.IsMatch);
+        Assert.Equal(1, mapper.ValidationTotalCount);
+        Assert.Equal(0, mapper.ValidationMatchCount);
+        Assert.Equal(1, mapper.ValidationMismatchCount);
     }
 
     private sealed class StubClassifier : IDriverClassifier
@@ -185,6 +254,7 @@ public class DriverScanMapperTests
     private sealed class ProbeVendorDriverVerifier : IVendorDriverVerifier
     {
         public int VerifyCallCount { get; private set; }
+        public DriverVerificationStatus ResultStatus { get; init; } = DriverVerificationStatus.UpToDate;
 
         public bool CanHandle(DriverIdentity identity) => true;
 
@@ -194,7 +264,7 @@ public class DriverScanMapperTests
 
             return new DriverVerificationResult
             {
-                Status = DriverVerificationStatus.UpToDate,
+                Status = ResultStatus,
                 LatestOfficialVersion = identity.InstalledVersion,
                 VerificationSourceType = VerificationSourceType.OfficialApi,
                 SourceDetails = "Probe verifier",
