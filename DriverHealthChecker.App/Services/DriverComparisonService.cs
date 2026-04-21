@@ -12,10 +12,13 @@ internal interface IDriverComparisonService
 
 internal sealed class DriverComparisonService : IDriverComparisonService
 {
-    private const bool DefaultUseVerificationForStatus = false;
+    private const bool DefaultUseVerificationForStatus = true;
 
     private readonly IDriverStatusEvaluator _driverStatusEvaluator;
     private readonly bool _useVerificationForStatus;
+    internal int LastDecisionTotalCount { get; private set; }
+    internal int LastDecisionUsedVerificationCount { get; private set; }
+    internal int LastDecisionFallbackCount { get; private set; }
 
     public DriverComparisonService(IDriverStatusEvaluator driverStatusEvaluator)
         : this(driverStatusEvaluator, DefaultUseVerificationForStatus)
@@ -60,12 +63,17 @@ internal sealed class DriverComparisonService : IDriverComparisonService
             }
 
             driver.StatusKind = _driverStatusEvaluator.EvaluateStatus(driver.Date);
-
             ApplyVerificationDecision(driver, ref usedVerificationCount, ref stayedLegacyCount);
         }
 
+        LastDecisionTotalCount = currentDrivers.Count;
+        LastDecisionUsedVerificationCount = usedVerificationCount;
+        LastDecisionFallbackCount = stayedLegacyCount;
+
         AppLogger.Info(
             $"Comparison applied. isRescan={isRescan}, total={currentDrivers.Count}, recentlyUpdated={recentlyUpdatedCount}, usedVerification={usedVerificationCount}, stayedLegacy={stayedLegacyCount}.");
+        AppLogger.Info(
+            $"Verification decision aggregate. totalDrivers={LastDecisionTotalCount}, usedVerification={LastDecisionUsedVerificationCount}, fallbackToLegacy={LastDecisionFallbackCount}.");
     }
 
     public Dictionary<string, DriverSnapshot> BuildSnapshot(List<DriverItem> currentDrivers)
@@ -90,6 +98,8 @@ internal sealed class DriverComparisonService : IDriverComparisonService
         ref int usedVerificationCount,
         ref int stayedLegacyCount)
     {
+        var legacyStatus = driver.StatusKind;
+
         try
         {
             if (!_useVerificationForStatus || driver.VerificationStatus == null)
@@ -98,11 +108,19 @@ internal sealed class DriverComparisonService : IDriverComparisonService
                 return;
             }
 
-            driver.StatusKind = MapVerificationStatus(driver.VerificationStatus.Value);
+            var verificationStatus = MapVerificationStatus(driver.VerificationStatus.Value);
+            if (verificationStatus != legacyStatus)
+            {
+                AppLogger.Info(
+                    $"Verification decision mismatch. category={driver.Category}, name={driver.Name}, legacyStatus={legacyStatus}, verificationStatus={driver.VerificationStatus.Value}.");
+            }
+
+            driver.StatusKind = verificationStatus;
             usedVerificationCount++;
         }
         catch (Exception ex)
         {
+            driver.StatusKind = legacyStatus;
             stayedLegacyCount++;
             AppLogger.Error("Не удалось применить verification-based decision layer.", ex);
         }
@@ -115,7 +133,7 @@ internal sealed class DriverComparisonService : IDriverComparisonService
             DriverVerificationStatus.UpToDate => DriverHealthStatus.UpToDate,
             DriverVerificationStatus.UpdateAvailable => DriverHealthStatus.NeedsAttention,
             DriverVerificationStatus.UnableToVerifyReliably => DriverHealthStatus.NeedsReview,
-            _ => DriverHealthStatus.NeedsReview
+            _ => throw new ArgumentOutOfRangeException(nameof(verificationStatus), verificationStatus, "Unsupported verification status.")
         };
     }
 }
