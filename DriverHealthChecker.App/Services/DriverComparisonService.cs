@@ -145,13 +145,9 @@ internal sealed class DriverComparisonService : IDriverComparisonService
         if (verificationStatus == null)
             return null;
 
-        return verificationStatus.Value switch
-        {
-            DriverVerificationStatus.UpToDate => DriverHealthStatus.UpToDate,
-            DriverVerificationStatus.UpdateAvailable => DriverHealthStatus.NeedsAttention,
-            DriverVerificationStatus.UnableToVerifyReliably => DriverHealthStatus.NeedsReview,
-            _ => throw new ArgumentOutOfRangeException(nameof(verificationStatus), verificationStatus, $"Unsupported verification status for driver '{driver.Name}'.")
-        };
+        return VerificationStatusNormalization.MapToDriverHealthStatus(
+            verificationStatus.Value,
+            driver.Name);
     }
 
     private static bool IsRecentlyUpdated(

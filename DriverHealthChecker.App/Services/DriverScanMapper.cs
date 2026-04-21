@@ -260,15 +260,12 @@ internal sealed class DriverScanMapper : IDriverScanMapper
         }
     }
 
-    private static bool IsLogicalMatch(DriverHealthStatus legacyStatus, DriverVerificationStatus verificationStatus)
+    private static bool IsLogicalMatch(DriverHealthStatus finalStatus, DriverVerificationStatus verificationStatus)
     {
-        return legacyStatus switch
-        {
-            DriverHealthStatus.UpToDate => verificationStatus == DriverVerificationStatus.UpToDate,
-            DriverHealthStatus.NeedsAttention => verificationStatus == DriverVerificationStatus.UpdateAvailable,
-            DriverHealthStatus.NeedsReview => verificationStatus == DriverVerificationStatus.UnableToVerifyReliably,
-            _ => false
-        };
+        return VerificationStatusNormalization.TryMapToDriverHealthStatus(
+            verificationStatus,
+            out var normalizedStatus) &&
+            normalizedStatus == finalStatus;
     }
 
     private static DriverItem BuildHiddenItem(ScannedDriverRecord record, string reason)
