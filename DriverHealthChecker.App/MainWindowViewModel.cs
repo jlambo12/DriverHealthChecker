@@ -18,6 +18,7 @@ internal sealed class MainWindowViewModel
     private Dictionary<string, DriverSnapshot> _previousSnapshot = new();
     private List<DriverItem> _currentDrivers = new();
     private List<DriverItem> _hiddenDrivers = new();
+    private List<DriverVerificationObservation> _lastVerificationObservations = new();
     private string _lastSummaryBaseText = "Нажми «Сканировать», чтобы получить список важных драйверов.";
 
     public bool IsScanning { get; private set; }
@@ -116,6 +117,12 @@ internal sealed class MainWindowViewModel
 
         var buildResult = _driverScanMapper.Build(records, profile);
         var selected = buildResult.SelectedDrivers;
+        _lastVerificationObservations = buildResult.VerificationObservations;
+
+        if (_lastVerificationObservations.Count > 0)
+        {
+            AppLogger.Info($"Shadow verification observations captured: {_lastVerificationObservations.Count}.");
+        }
 
         var deviceRecommendation = _driverPresentationService.BuildDeviceRecommendationItem();
         if (deviceRecommendation != null)

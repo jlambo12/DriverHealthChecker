@@ -15,21 +15,25 @@ internal sealed class DriverScanMapper : IDriverScanMapper
     private readonly IDriverClassifier _driverClassifier;
     private readonly IOfficialActionResolver _officialActionResolver;
     private readonly IDriverSelectionService _driverSelectionService;
+    private readonly DriverVerifierRegistry? _driverVerifierRegistry;
 
     public DriverScanMapper(
         IDriverClassifier driverClassifier,
         IOfficialActionResolver officialActionResolver,
-        IDriverSelectionService driverSelectionService)
+        IDriverSelectionService driverSelectionService,
+        DriverVerifierRegistry? driverVerifierRegistry = null)
     {
         _driverClassifier = driverClassifier;
         _officialActionResolver = officialActionResolver;
         _driverSelectionService = driverSelectionService;
+        _driverVerifierRegistry = driverVerifierRegistry;
     }
 
     public DriverScanBuildResult Build(IReadOnlyList<ScannedDriverRecord> records, DeviceProfile? profile)
     {
         var allDrivers = new List<DriverItem>();
         var hiddenDrivers = new List<DriverItem>();
+        var verificationObservations = new List<DriverVerificationObservation>();
         var mappedCount = 0;
         var skippedCount = 0;
 
@@ -55,6 +59,8 @@ internal sealed class DriverScanMapper : IDriverScanMapper
                     category,
                     profile?.Manufacturer,
                     profile?.IsLaptop == true);
+
+                RunShadowVerification(record, normalizedName, normalizedManufacturer, verificationObservations);
 
                 allDrivers.Add(new DriverItem
                 {
@@ -83,7 +89,63 @@ internal sealed class DriverScanMapper : IDriverScanMapper
         return new DriverScanBuildResult
         {
             SelectedDrivers = selected,
-            HiddenDrivers = hiddenDrivers.OrderBy(d => d.Name).ToList()
+            HiddenDrivers = hiddenDrivers.OrderBy(d => d.Name).ToList(),
+            VerificationObservations = verificationObservations
+        };
+    }
+
+    private void RunShadowVerification(
+        ScannedDriverRecord record,
+        string normalizedName,
+        string normalizedManufacturer,
+        List<DriverVerificationObservation> verificationObservations)
+    {
+        if (_driverVerifierRegistry == null)
+            return;
+
+        var identity = BuildDriverIdentity(record, normalizedName, normalizedManufacturer);
+
+        try
+        {
+            var verificationResult = _driverVerifierRegistry.Verify(identity);
+            verificationObservations.Add(new DriverVerificationObservation
+            {
+                DriverName = identity.DisplayName,
+                Manufacturer = identity.Manufacturer,
+                Result = verificationResult
+            });
+
+            AppLogger.Info(
+                $"Shadow verification completed. device={identity.DisplayName}, source={verificationResult.SourceDetails}, status={verificationResult.Status}, failure={verificationResult.FailureReasonType?.ToString() ?? "None"}.");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(
+                $"Shadow verification failed for device={identity.DisplayName}.",
+                ex);
+        }
+    }
+
+    private static DriverIdentity BuildDriverIdentity(
+        ScannedDriverRecord record,
+        string normalizedName,
+        string normalizedManufacturer)
+    {
+        return new DriverIdentity
+        {
+            DisplayName = CleanDeviceName(normalizedName),
+            NormalizedName = normalizedName,
+            InstalledVersion = record.Version,
+            Manufacturer = CleanManufacturer(normalizedManufacturer),
+            NormalizedManufacturer = normalizedManufacturer,
+            PnpDeviceId = record.PnpDeviceId,
+            HardwareIds = new List<string>(record.HardwareIds),
+            CompatibleIds = new List<string>(record.CompatibleIds),
+            DriverProviderName = record.DriverProviderName,
+            DriverInfName = record.DriverInfName,
+            DriverSignerName = record.DriverSignerName,
+            DriverClass = record.DriverClass,
+            ClassGuid = record.ClassGuid
         };
     }
 
