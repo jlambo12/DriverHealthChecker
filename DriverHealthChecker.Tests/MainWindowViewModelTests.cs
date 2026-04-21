@@ -79,7 +79,7 @@ public sealed class MainWindowViewModelTests
         Assert.Null(mappedDriver.VerificationIsMatch);
     }
 
-    private static DriverItem CreateDriverItem()
+    private static DriverItem CreateDriverItem(DriverHealthStatus statusKind = DriverHealthStatus.NeedsReview)
     {
         return new DriverItem
         {
@@ -88,7 +88,7 @@ public sealed class MainWindowViewModelTests
             Version = "1.0.0",
             Date = "2024-01-01",
             CategoryKind = DriverCategory.Network,
-            StatusKind = DriverHealthStatus.NeedsReview
+            StatusKind = statusKind
         };
     }
 

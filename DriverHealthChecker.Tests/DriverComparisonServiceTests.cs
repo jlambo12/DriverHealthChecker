@@ -101,4 +101,66 @@ public class DriverComparisonServiceTests
         Assert.True(snapshot.ContainsKey("Network|Intel Wi-Fi"));
         Assert.Equal("1.2.3", snapshot["Network|Intel Wi-Fi"].Version);
     }
+
+    [Fact]
+    public void ApplyComparison_WhenFlagOff_KeepsLegacyStatus()
+    {
+        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: false);
+        var drivers = new List<DriverItem>
+        {
+            new()
+            {
+                Name = "Intel Wi-Fi",
+                Category = "Network",
+                Version = "1.0",
+                Date = "not-a-date",
+                VerificationStatus = DriverVerificationStatus.UpToDate
+            }
+        };
+
+        service.ApplyComparison(drivers, isRescan: false, new Dictionary<string, DriverSnapshot>());
+
+        Assert.Equal(DriverHealthStatus.NeedsReview, drivers[0].StatusKind);
+    }
+
+    [Fact]
+    public void ApplyComparison_WhenFlagOn_OverridesStatusFromVerification()
+    {
+        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: true);
+        var drivers = new List<DriverItem>
+        {
+            new()
+            {
+                Name = "Intel Wi-Fi",
+                Category = "Network",
+                Version = "1.0",
+                Date = "not-a-date",
+                VerificationStatus = DriverVerificationStatus.UpdateAvailable
+            }
+        };
+
+        service.ApplyComparison(drivers, isRescan: false, new Dictionary<string, DriverSnapshot>());
+
+        Assert.Equal(DriverHealthStatus.NeedsAttention, drivers[0].StatusKind);
+    }
+
+    [Fact]
+    public void ApplyComparison_WhenVerificationMissing_FallsBackToLegacyStatus()
+    {
+        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: true);
+        var drivers = new List<DriverItem>
+        {
+            new()
+            {
+                Name = "Intel Wi-Fi",
+                Category = "Network",
+                Version = "1.0",
+                Date = "not-a-date"
+            }
+        };
+
+        service.ApplyComparison(drivers, isRescan: false, new Dictionary<string, DriverSnapshot>());
+
+        Assert.Equal(DriverHealthStatus.NeedsReview, drivers[0].StatusKind);
+    }
 }
