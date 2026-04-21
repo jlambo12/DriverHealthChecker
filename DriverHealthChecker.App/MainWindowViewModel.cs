@@ -116,6 +116,7 @@ internal sealed class MainWindowViewModel
 
         var buildResult = _driverScanMapper.Build(records, profile);
         var selected = buildResult.SelectedDrivers;
+        PopulateVerificationData(selected, buildResult.VerificationObservations);
 
         var deviceRecommendation = _driverPresentationService.BuildDeviceRecommendationItem();
         if (deviceRecommendation != null)
@@ -124,6 +125,50 @@ internal sealed class MainWindowViewModel
         _hiddenDrivers = buildResult.HiddenDrivers;
 
         return OperationResult<List<DriverItem>>.Success(selected);
+    }
+
+    private static void PopulateVerificationData(
+        IReadOnlyCollection<DriverItem> drivers,
+        IReadOnlyCollection<DriverVerificationObservation> observations)
+    {
+        if (drivers.Count == 0)
+            return;
+
+        try
+        {
+            var observationsByKey = observations
+                .Where(o => !string.IsNullOrWhiteSpace(o.DriverKey))
+                .GroupBy(o => o.DriverKey, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var withVerification = 0;
+            var mismatchCount = 0;
+
+            foreach (var driver in drivers)
+            {
+                if (!observationsByKey.TryGetValue(BuildDriverKey(driver), out var observation))
+                    continue;
+
+                driver.VerificationStatus = observation.VerificationStatus;
+                driver.VerificationIsMatch = observation.IsMatch;
+                withVerification++;
+
+                if (observation.IsMatch == false)
+                    mismatchCount++;
+            }
+
+            AppLogger.Info(
+                $"Verification exposure prepared. drivers={drivers.Count}, withVerification={withVerification}, mismatches={mismatchCount}.");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Не удалось промапить shadow verification data на DriverItem.", ex);
+        }
+    }
+
+    private static string BuildDriverKey(DriverItem driver)
+    {
+        return $"{DriverTextMapper.ToCategoryCode(driver.CategoryKind)}|{driver.Name}";
     }
 
     private static string BuildSummaryBaseText(IReadOnlyCollection<DriverItem> drivers)

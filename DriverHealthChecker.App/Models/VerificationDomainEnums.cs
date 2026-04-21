@@ -1,6 +1,6 @@
 namespace DriverHealthChecker.App;
 
-internal enum DriverVerificationStatus
+public enum DriverVerificationStatus
 {
     UpToDate,
     UpdateAvailable,

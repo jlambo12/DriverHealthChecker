@@ -68,4 +68,6 @@ public class DriverItem
     public string ButtonText { get; set; } = "Открыть";
     public string ButtonTooltip { get; set; } = "Открыть действие";
     public OfficialAction OfficialAction { get; set; } = OfficialAction.ForMessage("Открыть", "Источник не задан.", "Открыть действие");
+    public DriverVerificationStatus? VerificationStatus { get; set; }
+    public bool? VerificationIsMatch { get; set; }
 }
