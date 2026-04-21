@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using DriverHealthChecker.App;
 using Xunit;
 
@@ -189,6 +191,156 @@ public class DriverScanMapperTests
         Assert.Equal(1, mapper.ValidationMismatchCount);
     }
 
+    [Fact]
+    public void Build_LogsVerificationAggregate()
+    {
+        var probeVerifier = new ProbeVendorDriverVerifier
+        {
+            ResultStatus = DriverVerificationStatus.UnableToVerifyReliably
+        };
+        var registry = new DriverVerifierRegistry([probeVerifier]);
+        var mapper = new DriverScanMapper(
+            new StubClassifier(classify: true),
+            new StubActionResolver(),
+            new StubSelectionService(),
+            registry);
+
+        const string message = "Verification aggregate. totalDrivers=2, withVerification=2, mismatches=0.";
+        var beforeCount = CountLogOccurrences(message);
+
+        mapper.Build(
+            [
+                new ScannedDriverRecord
+                {
+                    Name = "Intel Wi-Fi",
+                    Manufacturer = "Intel",
+                    Version = "1.0.0",
+                    PnpDeviceId = @"PCI\VEN_8086&DEV_1234"
+                },
+                new ScannedDriverRecord
+                {
+                    Name = "Intel Bluetooth",
+                    Manufacturer = "Intel",
+                    Version = "1.0.0",
+                    PnpDeviceId = @"PCI\VEN_8086&DEV_5678"
+                }
+            ],
+            profile: null);
+
+        Assert.Equal(beforeCount + 1, CountLogOccurrences(message));
+    }
+
+    [Fact]
+    public void Build_LogsMismatchOnlyForMismatchCases()
+    {
+        var mismatchRegistry = new DriverVerifierRegistry(
+            [new ProbeVendorDriverVerifier { ResultStatus = DriverVerificationStatus.UpToDate }]);
+        var mismatchMapper = new DriverScanMapper(
+            new StubClassifier(classify: true),
+            new StubActionResolver(),
+            new StubSelectionService(),
+            mismatchRegistry);
+
+        const string mismatchMessage = "Verification mismatch. vendorId=8086, deviceId=BEEF, legacyStatus=NeedsReview, verificationStatus=UpToDate.";
+        var mismatchBeforeCount = CountLogOccurrences(mismatchMessage);
+
+        mismatchMapper.Build(
+            [new ScannedDriverRecord
+            {
+                Name = "Intel Wi-Fi Mismatch",
+                Manufacturer = "Intel",
+                Version = "1.0.0",
+                PnpDeviceId = @"PCI\VEN_8086&DEV_BEEF"
+            }],
+            profile: null);
+
+        Assert.Equal(mismatchBeforeCount + 1, CountLogOccurrences(mismatchMessage));
+
+        var matchRegistry = new DriverVerifierRegistry(
+            [new ProbeVendorDriverVerifier { ResultStatus = DriverVerificationStatus.UnableToVerifyReliably }]);
+        var matchMapper = new DriverScanMapper(
+            new StubClassifier(classify: true),
+            new StubActionResolver(),
+            new StubSelectionService(),
+            matchRegistry);
+
+        const string noMismatchMessage = "Verification mismatch. vendorId=8086, deviceId=CAFE, legacyStatus=NeedsReview, verificationStatus=UnableToVerifyReliably.";
+        var noMismatchBeforeCount = CountLogOccurrences(noMismatchMessage);
+
+        matchMapper.Build(
+            [new ScannedDriverRecord
+            {
+                Name = "Intel Wi-Fi Match",
+                Manufacturer = "Intel",
+                Version = "1.0.0",
+                PnpDeviceId = @"PCI\VEN_8086&DEV_CAFE"
+            }],
+            profile: null);
+
+        Assert.Equal(noMismatchBeforeCount, CountLogOccurrences(noMismatchMessage));
+    }
+
+    [Fact]
+    public void Build_WhenLoggerThrows_DoesNotBreakPipeline()
+    {
+        var probeVerifier = new ProbeVendorDriverVerifier
+        {
+            ResultStatus = DriverVerificationStatus.UpToDate
+        };
+        var registry = new DriverVerifierRegistry([probeVerifier]);
+        var mapper = new DriverScanMapper(
+            new StubClassifier(classify: true),
+            new StubActionResolver(),
+            new StubSelectionService(),
+            registry);
+
+        var logFilePath = GetLogFilePath();
+        Directory.CreateDirectory(Path.GetDirectoryName(logFilePath)!);
+
+        using var logLock = new FileStream(logFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+
+        var result = mapper.Build(
+            [new ScannedDriverRecord
+            {
+                Name = "Intel Wi-Fi",
+                Manufacturer = "Intel",
+                Version = "1.0.0",
+                PnpDeviceId = @"PCI\VEN_8086&DEV_1234"
+            }],
+            profile: null);
+
+        Assert.Single(result.SelectedDrivers);
+        Assert.Single(result.VerificationObservations);
+        Assert.Equal("Intel Tool", result.SelectedDrivers[0].ButtonText);
+    }
+
+    private static int CountLogOccurrences(string message)
+    {
+        var logFilePath = GetLogFilePath();
+        if (!File.Exists(logFilePath))
+            return 0;
+
+        var text = File.ReadAllText(logFilePath);
+        var count = 0;
+        var index = 0;
+        while ((index = text.IndexOf(message, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += message.Length;
+        }
+
+        return count;
+    }
+
+    private static string GetLogFilePath()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DriverHealthChecker",
+            "logs",
+            "app.log");
+    }
+
     private sealed class StubClassifier : IDriverClassifier
     {
         private readonly bool _classify;
@@ -282,4 +434,5 @@ public class DriverScanMapperTests
             throw new System.InvalidOperationException("verification failed");
         }
     }
+
 }
