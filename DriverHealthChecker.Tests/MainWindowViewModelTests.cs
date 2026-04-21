@@ -155,6 +155,12 @@ public sealed class MainWindowViewModelTests
                 VerificationObservations = new List<DriverVerificationObservation>(_observations)
             };
         }
+
+        public void FinalizeVerificationObservations(
+            IReadOnlyCollection<DriverItem> drivers,
+            IReadOnlyCollection<DriverVerificationObservation> observations)
+        {
+        }
     }
 
     private sealed class StubDriverFilteringService : IDriverFilteringService

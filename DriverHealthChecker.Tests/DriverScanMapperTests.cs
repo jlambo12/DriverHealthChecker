@@ -94,9 +94,8 @@ public class DriverScanMapperTests
         Assert.Equal(1, probeVerifier.VerifyCallCount);
         Assert.Equal("Intel Wi-Fi", result.VerificationObservations[0].DriverName);
         Assert.Equal(DriverVerificationStatus.UpToDate, result.VerificationObservations[0].Result.Status);
-        Assert.Equal(DriverHealthStatus.NeedsReview, result.VerificationObservations[0].LegacyStatus);
         Assert.Equal(DriverVerificationStatus.UpToDate, result.VerificationObservations[0].VerificationStatus);
-        Assert.False(result.VerificationObservations[0].IsMatch);
+        Assert.Equal(DriverHealthStatus.Unknown, result.VerificationObservations[0].FinalStatus);
     }
 
     [Fact]
@@ -149,8 +148,11 @@ public class DriverScanMapperTests
             }],
             profile: null);
 
+        result.SelectedDrivers[0].StatusKind = DriverHealthStatus.NeedsReview;
+        mapper.FinalizeVerificationObservations(result.SelectedDrivers, result.VerificationObservations);
+
         var observation = Assert.Single(result.VerificationObservations);
-        Assert.Equal(DriverHealthStatus.NeedsReview, observation.LegacyStatus);
+        Assert.Equal(DriverHealthStatus.NeedsReview, observation.FinalStatus);
         Assert.Equal(DriverVerificationStatus.UnableToVerifyReliably, observation.VerificationStatus);
         Assert.True(observation.IsMatch);
         Assert.Equal(1, mapper.ValidationTotalCount);
@@ -182,8 +184,11 @@ public class DriverScanMapperTests
             }],
             profile: null);
 
+        result.SelectedDrivers[0].StatusKind = DriverHealthStatus.NeedsReview;
+        mapper.FinalizeVerificationObservations(result.SelectedDrivers, result.VerificationObservations);
+
         var observation = Assert.Single(result.VerificationObservations);
-        Assert.Equal(DriverHealthStatus.NeedsReview, observation.LegacyStatus);
+        Assert.Equal(DriverHealthStatus.NeedsReview, observation.FinalStatus);
         Assert.Equal(DriverVerificationStatus.UpToDate, observation.VerificationStatus);
         Assert.False(observation.IsMatch);
         Assert.Equal(1, mapper.ValidationTotalCount);
@@ -208,7 +213,7 @@ public class DriverScanMapperTests
         const string message = "Verification aggregate. totalDrivers=2, withVerification=2, mismatches=0.";
         var beforeCount = CountLogOccurrences(message);
 
-        mapper.Build(
+        var aggregateResult = mapper.Build(
             [
                 new ScannedDriverRecord
                 {
@@ -227,6 +232,11 @@ public class DriverScanMapperTests
             ],
             profile: null);
 
+        foreach (var driver in aggregateResult.SelectedDrivers)
+            driver.StatusKind = DriverHealthStatus.NeedsReview;
+
+        mapper.FinalizeVerificationObservations(aggregateResult.SelectedDrivers, aggregateResult.VerificationObservations);
+
         Assert.Equal(beforeCount + 1, CountLogOccurrences(message));
     }
 
@@ -241,10 +251,10 @@ public class DriverScanMapperTests
             new StubSelectionService(),
             mismatchRegistry);
 
-        const string mismatchMessage = "Verification mismatch. vendorId=8086, deviceId=BEEF, legacyStatus=NeedsReview, verificationStatus=UpToDate.";
+        const string mismatchMessage = "Verification mismatch. vendorId=8086, deviceId=BEEF, finalStatus=NeedsReview, verificationStatus=UpToDate.";
         var mismatchBeforeCount = CountLogOccurrences(mismatchMessage);
 
-        mismatchMapper.Build(
+        var mismatchResult = mismatchMapper.Build(
             [new ScannedDriverRecord
             {
                 Name = "Intel Wi-Fi Mismatch",
@@ -253,6 +263,9 @@ public class DriverScanMapperTests
                 PnpDeviceId = @"PCI\VEN_8086&DEV_BEEF"
             }],
             profile: null);
+
+        mismatchResult.SelectedDrivers[0].StatusKind = DriverHealthStatus.NeedsReview;
+        mismatchMapper.FinalizeVerificationObservations(mismatchResult.SelectedDrivers, mismatchResult.VerificationObservations);
 
         Assert.Equal(mismatchBeforeCount + 1, CountLogOccurrences(mismatchMessage));
 
@@ -264,10 +277,10 @@ public class DriverScanMapperTests
             new StubSelectionService(),
             matchRegistry);
 
-        const string noMismatchMessage = "Verification mismatch. vendorId=8086, deviceId=CAFE, legacyStatus=NeedsReview, verificationStatus=UnableToVerifyReliably.";
+        const string noMismatchMessage = "Verification mismatch. vendorId=8086, deviceId=CAFE, finalStatus=NeedsReview, verificationStatus=UnableToVerifyReliably.";
         var noMismatchBeforeCount = CountLogOccurrences(noMismatchMessage);
 
-        matchMapper.Build(
+        var matchResult = matchMapper.Build(
             [new ScannedDriverRecord
             {
                 Name = "Intel Wi-Fi Match",
@@ -276,6 +289,9 @@ public class DriverScanMapperTests
                 PnpDeviceId = @"PCI\VEN_8086&DEV_CAFE"
             }],
             profile: null);
+
+        matchResult.SelectedDrivers[0].StatusKind = DriverHealthStatus.NeedsReview;
+        matchMapper.FinalizeVerificationObservations(matchResult.SelectedDrivers, matchResult.VerificationObservations);
 
         Assert.Equal(noMismatchBeforeCount, CountLogOccurrences(noMismatchMessage));
     }
@@ -308,6 +324,9 @@ public class DriverScanMapperTests
                 PnpDeviceId = @"PCI\VEN_8086&DEV_1234"
             }],
             profile: null);
+
+        result.SelectedDrivers[0].StatusKind = DriverHealthStatus.NeedsReview;
+        mapper.FinalizeVerificationObservations(result.SelectedDrivers, result.VerificationObservations);
 
         Assert.Single(result.SelectedDrivers);
         Assert.Single(result.VerificationObservations);
