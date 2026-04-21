@@ -81,7 +81,6 @@ internal sealed class DriverScanMapper : IDriverScanMapper
                     Version = string.IsNullOrWhiteSpace(record.Version) ? "-" : record.Version,
                     Date = FormatDate(record.RawDate),
                     CategoryKind = category,
-                    StatusKind = DriverHealthStatus.NeedsReview,
                     OfficialAction = action,
                     ButtonText = action.ButtonText,
                     DetectionReason = reason,

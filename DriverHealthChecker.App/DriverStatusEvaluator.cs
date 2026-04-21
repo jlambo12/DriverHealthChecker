@@ -7,6 +7,7 @@ internal interface IDriverStatusEvaluator
     DriverHealthStatus EvaluateStatus(string formattedDate);
 }
 
+// TODO: cleanup after legacy removal phase.
 internal sealed class DriverStatusEvaluator : IDriverStatusEvaluator
 {
     public DriverHealthStatus EvaluateStatus(string formattedDate)

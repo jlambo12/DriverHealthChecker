@@ -132,6 +132,7 @@ internal sealed class DriverComparisonService : IDriverComparisonService
         }
     }
 
+    // TODO: cleanup after legacy removal phase.
     private DriverHealthStatus GetLegacyStatus(DriverItem driver)
     {
         return _driverStatusEvaluator.EvaluateStatus(driver.Date);
