@@ -8,6 +8,7 @@ namespace DriverHealthChecker.App;
 internal interface IDriverScanMapper
 {
     DriverScanBuildResult Build(IReadOnlyList<ScannedDriverRecord> records, DeviceProfile? profile);
+    void FinalizeVerificationObservations(IReadOnlyCollection<DriverItem> drivers, IReadOnlyCollection<DriverVerificationObservation> observations);
 }
 
 internal sealed class DriverScanMapper : IDriverScanMapper
@@ -100,7 +101,6 @@ internal sealed class DriverScanMapper : IDriverScanMapper
 
         var selected = _driverSelectionService.SelectBestDrivers(allDrivers);
         SafeLogInfo($"DriverScanMapper completed. source={records.Count}, mapped={mappedCount}, skipped={skippedCount}, selected={selected.Count}, hidden={hiddenDrivers.Count}.");
-        LogVerificationAggregate(allDrivers.Count, verificationObservations.Count);
 
         return new DriverScanBuildResult
         {
@@ -108,6 +108,43 @@ internal sealed class DriverScanMapper : IDriverScanMapper
             HiddenDrivers = hiddenDrivers.OrderBy(d => d.Name).ToList(),
             VerificationObservations = verificationObservations
         };
+    }
+
+    public void FinalizeVerificationObservations(
+        IReadOnlyCollection<DriverItem> drivers,
+        IReadOnlyCollection<DriverVerificationObservation> observations)
+    {
+        _validationTotal = 0;
+        _validationMatch = 0;
+        _validationMismatch = 0;
+
+        try
+        {
+            var driversByKey = drivers
+                .GroupBy(BuildDriverKey, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            var withVerification = 0;
+
+            foreach (var observation in observations)
+            {
+                if (string.IsNullOrWhiteSpace(observation.DriverKey))
+                    continue;
+
+                if (!driversByKey.TryGetValue(observation.DriverKey, out var driver))
+                    continue;
+
+                observation.FinalStatus = driver.StatusKind;
+                ValidateObservation(observation);
+                withVerification++;
+            }
+
+            LogVerificationAggregate(drivers.Count, withVerification);
+        }
+        catch (Exception ex)
+        {
+            SafeLogError("Shadow verification finalization failed.", ex);
+        }
     }
 
     private void RunShadowVerification(
@@ -134,11 +171,8 @@ internal sealed class DriverScanMapper : IDriverScanMapper
                 VendorId = string.IsNullOrWhiteSpace(tokens.VendorId) ? null : tokens.VendorId,
                 DeviceId = string.IsNullOrWhiteSpace(tokens.DeviceId) ? null : tokens.DeviceId,
                 Result = verificationResult,
-                LegacyStatus = driverItem.StatusKind,
                 VerificationStatus = verificationResult.Status
             };
-
-            ValidateObservation(observation);
             verificationObservations.Add(observation);
         }
         catch (Exception ex)
@@ -182,7 +216,7 @@ internal sealed class DriverScanMapper : IDriverScanMapper
         try
         {
             _validationTotal++;
-            observation.IsMatch = IsLogicalMatch(observation.LegacyStatus, observation.VerificationStatus);
+            observation.IsMatch = IsLogicalMatch(observation.FinalStatus, observation.VerificationStatus);
             if (observation.IsMatch)
             {
                 _validationMatch++;
@@ -191,7 +225,7 @@ internal sealed class DriverScanMapper : IDriverScanMapper
 
             _validationMismatch++;
             SafeLogInfo(
-                $"Verification mismatch. vendorId={observation.VendorId ?? "-"}, deviceId={observation.DeviceId ?? "-"}, legacyStatus={observation.LegacyStatus}, verificationStatus={observation.VerificationStatus}.");
+                $"Verification mismatch. vendorId={observation.VendorId ?? "-"}, deviceId={observation.DeviceId ?? "-"}, finalStatus={observation.FinalStatus}, verificationStatus={observation.VerificationStatus}.");
         }
         catch (Exception ex)
         {

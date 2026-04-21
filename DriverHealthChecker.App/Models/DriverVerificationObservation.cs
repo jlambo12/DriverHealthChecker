@@ -8,7 +8,7 @@ internal sealed class DriverVerificationObservation
     public string? VendorId { get; init; }
     public string? DeviceId { get; init; }
     public DriverVerificationResult Result { get; init; } = new();
-    public DriverHealthStatus LegacyStatus { get; set; } = DriverHealthStatus.Unknown;
+    public DriverHealthStatus FinalStatus { get; set; } = DriverHealthStatus.Unknown;
     public DriverVerificationStatus VerificationStatus { get; set; } = DriverVerificationStatus.UnableToVerifyReliably;
     public bool IsMatch { get; set; }
 }
