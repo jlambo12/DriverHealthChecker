@@ -25,12 +25,12 @@ public sealed class VerificationOrchestratorTests
     [Fact]
     public void Verify_WithMatchingVendorVerifier_ReturnsStubVerifierResult()
     {
+        var matchingVerifier = new ProbeVendorDriverVerifier(canHandle: true, source: "matching");
         var orchestrator = new VerificationOrchestrator(
             new IVendorDriverVerifier[]
             {
-                new NvidiaDriverVerifier(),
-                new IntelDriverVerifier(),
-                new AmdDriverVerifier()
+                matchingVerifier,
+                new ProbeVendorDriverVerifier(canHandle: false, source: "other")
             });
 
         var result = orchestrator.Verify(new DriverIdentity
@@ -40,9 +40,9 @@ public sealed class VerificationOrchestratorTests
 
         Assert.Equal(DriverVerificationStatus.UnableToVerifyReliably, result.Status);
         Assert.Equal(VerificationSourceType.Unknown, result.VerificationSourceType);
-        Assert.Equal("NVIDIA official verification (stub)", result.SourceDetails);
+        Assert.Equal("matching", result.SourceDetails);
         Assert.Equal(VerificationFailureReasonType.VerifierNotImplemented, result.FailureReasonType);
-        Assert.Contains("stub", result.EvidenceSummary);
+        Assert.Contains("probe", result.EvidenceSummary);
     }
 
     [Fact]
