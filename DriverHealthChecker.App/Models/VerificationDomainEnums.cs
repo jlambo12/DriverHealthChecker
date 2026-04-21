@@ -18,6 +18,7 @@ internal enum VerificationSourceType
 internal enum VerificationFailureReasonType
 {
     NoMatchingVendor,
+    DeviceNotInOfficialDataset,
     VerifierNotImplemented,
     VerificationFailed
 }

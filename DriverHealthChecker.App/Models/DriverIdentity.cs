@@ -6,6 +6,7 @@ internal sealed class DriverIdentity
 {
     public string DisplayName { get; init; } = string.Empty;
     public string NormalizedName { get; init; } = string.Empty;
+    public string? InstalledVersion { get; init; }
     public string Manufacturer { get; init; } = string.Empty;
     public string NormalizedManufacturer { get; init; } = string.Empty;
     public string? PnpDeviceId { get; init; }
