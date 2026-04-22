@@ -50,40 +50,4 @@ internal static class VerificationStatusNormalization
         }
     }
 
-    public static DriverHealthStatus MapToDriverHealthStatus(
-        DriverVerificationStatus verificationStatus,
-        string? driverName = null)
-    {
-        return Normalize(verificationStatus, driverName) switch
-        {
-            NormalizedVerificationStatus.UpToDate => DriverHealthStatus.UpToDate,
-            NormalizedVerificationStatus.NeedsAttention => DriverHealthStatus.NeedsAttention,
-            NormalizedVerificationStatus.NeedsReview => DriverHealthStatus.NeedsReview,
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(verificationStatus),
-                verificationStatus,
-                "Unsupported normalized verification status.")
-        };
-    }
-
-    public static bool TryMapToDriverHealthStatus(
-        DriverVerificationStatus verificationStatus,
-        out DriverHealthStatus normalizedStatus)
-    {
-        if (!TryNormalize(verificationStatus, out var normalizedVerificationStatus))
-        {
-            normalizedStatus = DriverHealthStatus.Unknown;
-            return false;
-        }
-
-        normalizedStatus = normalizedVerificationStatus switch
-        {
-            NormalizedVerificationStatus.UpToDate => DriverHealthStatus.UpToDate,
-            NormalizedVerificationStatus.NeedsAttention => DriverHealthStatus.NeedsAttention,
-            NormalizedVerificationStatus.NeedsReview => DriverHealthStatus.NeedsReview,
-            _ => DriverHealthStatus.Unknown
-        };
-
-        return normalizedStatus != DriverHealthStatus.Unknown;
-    }
 }

@@ -108,13 +108,14 @@ internal sealed class DriverComparisonService : IDriverComparisonService
                 return legacyStatus;
             }
 
-            var verificationStatus = GetVerificationDerivedStatus(driver, driver.VerificationStatus);
-            if (verificationStatus == null)
+            var normalizedVerificationStatus = GetVerificationDerivedStatus(driver, driver.VerificationStatus);
+            if (normalizedVerificationStatus == null)
             {
                 stayedLegacyCount++;
                 return legacyStatus;
             }
 
+            var verificationStatus = MapNormalizedVerificationStatus(normalizedVerificationStatus.Value);
             if (verificationStatus != legacyStatus)
             {
                 AppLogger.Info(
@@ -122,7 +123,7 @@ internal sealed class DriverComparisonService : IDriverComparisonService
             }
 
             usedVerificationCount++;
-            return verificationStatus.Value;
+            return verificationStatus;
         }
         catch (Exception ex)
         {
@@ -138,16 +139,31 @@ internal sealed class DriverComparisonService : IDriverComparisonService
         return _driverStatusEvaluator.EvaluateStatus(driver.Date);
     }
 
-    private static DriverHealthStatus? GetVerificationDerivedStatus(
+    private static NormalizedVerificationStatus? GetVerificationDerivedStatus(
         DriverItem driver,
         DriverVerificationStatus? verificationStatus)
     {
         if (verificationStatus == null)
             return null;
 
-        return VerificationStatusNormalization.MapToDriverHealthStatus(
+        return VerificationStatusNormalization.Normalize(
             verificationStatus.Value,
             driver.Name);
+    }
+
+    private static DriverHealthStatus MapNormalizedVerificationStatus(
+        NormalizedVerificationStatus normalizedVerificationStatus)
+    {
+        return normalizedVerificationStatus switch
+        {
+            NormalizedVerificationStatus.UpToDate => DriverHealthStatus.UpToDate,
+            NormalizedVerificationStatus.NeedsAttention => DriverHealthStatus.NeedsAttention,
+            NormalizedVerificationStatus.NeedsReview => DriverHealthStatus.NeedsReview,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(normalizedVerificationStatus),
+                normalizedVerificationStatus,
+                "Unsupported normalized verification status.")
+        };
     }
 
     private static bool IsRecentlyUpdated(
