@@ -2,13 +2,21 @@ using System;
 
 namespace DriverHealthChecker.App;
 
+internal enum NormalizedVerificationStatus
+{
+    Unknown = 0,
+    UpToDate,
+    NeedsAttention,
+    NeedsReview
+}
+
 internal static class VerificationStatusNormalization
 {
-    public static DriverHealthStatus MapToDriverHealthStatus(
+    public static NormalizedVerificationStatus Normalize(
         DriverVerificationStatus verificationStatus,
         string? driverName = null)
     {
-        if (TryMapToDriverHealthStatus(verificationStatus, out var normalizedStatus))
+        if (TryNormalize(verificationStatus, out var normalizedStatus))
             return normalizedStatus;
 
         var detail = string.IsNullOrWhiteSpace(driverName)
@@ -21,24 +29,61 @@ internal static class VerificationStatusNormalization
             $"Unsupported verification status{detail}.");
     }
 
-    public static bool TryMapToDriverHealthStatus(
+    public static bool TryNormalize(
         DriverVerificationStatus verificationStatus,
-        out DriverHealthStatus normalizedStatus)
+        out NormalizedVerificationStatus normalizedStatus)
     {
         switch (verificationStatus)
         {
             case DriverVerificationStatus.UpToDate:
-                normalizedStatus = DriverHealthStatus.UpToDate;
+                normalizedStatus = NormalizedVerificationStatus.UpToDate;
                 return true;
             case DriverVerificationStatus.UpdateAvailable:
-                normalizedStatus = DriverHealthStatus.NeedsAttention;
+                normalizedStatus = NormalizedVerificationStatus.NeedsAttention;
                 return true;
             case DriverVerificationStatus.UnableToVerifyReliably:
-                normalizedStatus = DriverHealthStatus.NeedsReview;
+                normalizedStatus = NormalizedVerificationStatus.NeedsReview;
                 return true;
             default:
-                normalizedStatus = DriverHealthStatus.Unknown;
+                normalizedStatus = NormalizedVerificationStatus.Unknown;
                 return false;
         }
+    }
+
+    public static DriverHealthStatus MapToDriverHealthStatus(
+        DriverVerificationStatus verificationStatus,
+        string? driverName = null)
+    {
+        return Normalize(verificationStatus, driverName) switch
+        {
+            NormalizedVerificationStatus.UpToDate => DriverHealthStatus.UpToDate,
+            NormalizedVerificationStatus.NeedsAttention => DriverHealthStatus.NeedsAttention,
+            NormalizedVerificationStatus.NeedsReview => DriverHealthStatus.NeedsReview,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(verificationStatus),
+                verificationStatus,
+                "Unsupported normalized verification status.")
+        };
+    }
+
+    public static bool TryMapToDriverHealthStatus(
+        DriverVerificationStatus verificationStatus,
+        out DriverHealthStatus normalizedStatus)
+    {
+        if (!TryNormalize(verificationStatus, out var normalizedVerificationStatus))
+        {
+            normalizedStatus = DriverHealthStatus.Unknown;
+            return false;
+        }
+
+        normalizedStatus = normalizedVerificationStatus switch
+        {
+            NormalizedVerificationStatus.UpToDate => DriverHealthStatus.UpToDate,
+            NormalizedVerificationStatus.NeedsAttention => DriverHealthStatus.NeedsAttention,
+            NormalizedVerificationStatus.NeedsReview => DriverHealthStatus.NeedsReview,
+            _ => DriverHealthStatus.Unknown
+        };
+
+        return normalizedStatus != DriverHealthStatus.Unknown;
     }
 }
