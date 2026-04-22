@@ -16,19 +16,19 @@
 
 ## Current Priority
 
-- PRIORITY 1: foundation для exact official update flow.
-- Текущая ветка задачи: `feature/official-update-flow-foundation`.
-- Базовая ветка: `main`.
-- Цель: заложить минимальный foundation-слой для update routing без изменения verification runtime logic.
-- Scope: `docs/WORKPLAN.md`, update-routing модели/контракты, детерминированный base resolver, unit tests.
-- Forbidden changes: verification pipeline, decision layer, legacy fallback, heuristic routing, UI redesign, merge/push без approval.
+- PRIORITY 1: честный official update flow без heuristic routing и без ложных direct links.
+- Последняя завершённая задача: `feature/official-update-flow-foundation`.
+- Ветка интеграции: `integration/honest-verification`.
+- Следующий шаг: NVIDIA routing, ещё не начат.
+- Main не трогался. Release в `main` не выполнялся.
 
 ## Active Tasks
 
-- [Active] Ожидание approval / merge review по задаче `feature/official-update-flow-foundation`.
+- [Active] Нет активной task branch в работе. Следующая задача ещё не начата.
 
 ## Pending Tasks
 
+- [Pending] Начать `feature/nvidia-official-update-routing` от `integration/honest-verification`.
 - [Pending] Добавить exact official direct driver page routing для поддерживаемых vendor/device cases.
 - [Pending] Добавить vendor app routing policy: direct page vs official app.
 - [Pending] Подключить update action foundation к UI action wiring без ломки verification pipeline.
@@ -45,14 +45,16 @@
 - [Completed] Выполнен refinement текущей задачи до merge-ready состояния в рамках текущей ветки.
 - [Completed] Проверено удаление `DriverUpdateAction`: скрытых runtime/UI/test dependencies не найдено.
 - [Completed] Проверен rename `DriverUpdateActionType` -> `UpdateActionType`: скрытого breaking impact не найдено.
+- [Completed] `feature/official-update-flow-foundation` fast-forward merged в `integration/honest-verification`.
+- [Completed] Foundation для update flow внедрён в integration-ветку без касания `main`.
 
 ## Last Completed Task Status
 
-- Последняя завершённая задача в этой ветке: foundation для exact official update flow реализован без изменения verification runtime logic.
+- Последняя завершённая задача: foundation для exact official update flow реализован и влит в `integration/honest-verification`.
 - Стартовый коммит текущей задачи: `b34c6a9`.
 - Результат: build success, tests success (`180/180`).
-- Refinement status: safety-audit выполнен, ветка приведена к clean/merge-ready состоянию.
-- Следующий логичный шаг: добавить verified exact routing для конкретных vendor/device cases и только после этого подключать UI action wiring.
+- Merge status: `main` не трогался, release не выполнялся.
+- Следующий логичный шаг: начать NVIDIA routing как отдельную task branch от `integration/honest-verification`.
 
 ## Important Constraints
 
