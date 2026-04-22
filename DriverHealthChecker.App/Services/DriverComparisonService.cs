@@ -12,30 +12,19 @@ internal interface IDriverComparisonService
 
 internal sealed class DriverComparisonService : IDriverComparisonService
 {
-    private const bool DefaultUseVerificationForStatus = true;
-
-    private readonly IDriverStatusEvaluator _driverStatusEvaluator;
-    private readonly bool _useVerificationForStatus;
     internal int LastDecisionTotalCount { get; private set; }
     internal int LastDecisionUsedVerificationCount { get; private set; }
-    internal int LastDecisionFallbackCount { get; private set; }
+    internal int LastDecisionDefaultCount { get; private set; }
 
-    public DriverComparisonService(IDriverStatusEvaluator driverStatusEvaluator)
-        : this(driverStatusEvaluator, DefaultUseVerificationForStatus)
+    public DriverComparisonService()
     {
-    }
-
-    internal DriverComparisonService(IDriverStatusEvaluator driverStatusEvaluator, bool useVerificationForStatus)
-    {
-        _driverStatusEvaluator = driverStatusEvaluator;
-        _useVerificationForStatus = useVerificationForStatus;
     }
 
     public void ApplyComparison(List<DriverItem> currentDrivers, bool isRescan, IReadOnlyDictionary<string, DriverSnapshot> previousSnapshot)
     {
         var recentlyUpdatedCount = 0;
         var usedVerificationCount = 0;
-        var stayedLegacyCount = 0;
+        var defaultedCount = 0;
 
         foreach (var driver in currentDrivers)
         {
@@ -45,19 +34,19 @@ internal sealed class DriverComparisonService : IDriverComparisonService
                 previousSnapshot,
                 ref recentlyUpdatedCount,
                 ref usedVerificationCount,
-                ref stayedLegacyCount);
+                ref defaultedCount);
 
             driver.StatusKind = finalStatus;
         }
 
         LastDecisionTotalCount = currentDrivers.Count;
         LastDecisionUsedVerificationCount = usedVerificationCount;
-        LastDecisionFallbackCount = stayedLegacyCount;
+        LastDecisionDefaultCount = defaultedCount;
 
         AppLogger.Info(
-            $"Comparison applied. isRescan={isRescan}, total={currentDrivers.Count}, recentlyUpdated={recentlyUpdatedCount}, usedVerification={usedVerificationCount}, stayedLegacy={stayedLegacyCount}.");
+            $"Comparison applied. isRescan={isRescan}, total={currentDrivers.Count}, recentlyUpdated={recentlyUpdatedCount}, usedVerification={usedVerificationCount}, defaultedStatus={defaultedCount}.");
         AppLogger.Info(
-            $"Verification decision aggregate. totalDrivers={LastDecisionTotalCount}, usedVerification={LastDecisionUsedVerificationCount}, fallbackToLegacy={LastDecisionFallbackCount}.");
+            $"Verification decision aggregate. totalDrivers={LastDecisionTotalCount}, usedVerification={LastDecisionUsedVerificationCount}, defaultedStatus={LastDecisionDefaultCount}.");
     }
 
     public Dictionary<string, DriverSnapshot> BuildSnapshot(List<DriverItem> currentDrivers)
@@ -83,72 +72,48 @@ internal sealed class DriverComparisonService : IDriverComparisonService
         IReadOnlyDictionary<string, DriverSnapshot> previousSnapshot,
         ref int recentlyUpdatedCount,
         ref int usedVerificationCount,
-        ref int stayedLegacyCount)
+        ref int defaultedCount)
     {
         if (IsRecentlyUpdated(driver, isRescan, previousSnapshot))
         {
             recentlyUpdatedCount++;
-            stayedLegacyCount++;
             return DriverHealthStatus.RecentlyUpdated;
         }
 
         if (driver.CategoryKind == DriverCategory.DeviceRecommendation)
         {
-            stayedLegacyCount++;
             return DriverHealthStatus.Recommendation;
         }
 
-        var legacyStatus = GetLegacyStatus(driver);
-
         try
         {
-            if (!_useVerificationForStatus)
-            {
-                stayedLegacyCount++;
-                return legacyStatus;
-            }
-
-            var normalizedVerificationStatus = GetVerificationDerivedStatus(driver, driver.VerificationStatus);
+            var normalizedVerificationStatus = GetVerificationDerivedStatus(driver.VerificationStatus);
             if (normalizedVerificationStatus == null)
             {
-                stayedLegacyCount++;
-                return legacyStatus;
-            }
-
-            var verificationStatus = MapNormalizedVerificationStatus(normalizedVerificationStatus.Value);
-            if (verificationStatus != legacyStatus)
-            {
-                AppLogger.Info(
-                    $"Verification decision mismatch. category={driver.Category}, name={driver.Name}, legacyStatus={legacyStatus}, verificationStatus={driver.VerificationStatus!.Value}.");
+                defaultedCount++;
+                return GetDefaultStatus();
             }
 
             usedVerificationCount++;
-            return verificationStatus;
+            return MapNormalizedVerificationStatus(normalizedVerificationStatus.Value);
         }
         catch (Exception ex)
         {
-            stayedLegacyCount++;
-            AppLogger.Error("Не удалось применить verification-based decision layer.", ex);
-            return legacyStatus;
+            defaultedCount++;
+            AppLogger.Error("Не удалось применить verification-only decision layer.", ex);
+            return GetDefaultStatus();
         }
     }
 
-    // TODO: cleanup after legacy removal phase.
-    private DriverHealthStatus GetLegacyStatus(DriverItem driver)
-    {
-        return _driverStatusEvaluator.EvaluateStatus(driver.Date);
-    }
-
     private static NormalizedVerificationStatus? GetVerificationDerivedStatus(
-        DriverItem driver,
         DriverVerificationStatus? verificationStatus)
     {
         if (verificationStatus == null)
             return null;
 
-        return VerificationStatusNormalization.Normalize(
-            verificationStatus.Value,
-            driver.Name);
+        return VerificationStatusNormalization.TryNormalize(verificationStatus.Value, out var normalizedVerificationStatus)
+            ? normalizedVerificationStatus
+            : null;
     }
 
     private static DriverHealthStatus MapNormalizedVerificationStatus(
@@ -164,6 +129,11 @@ internal sealed class DriverComparisonService : IDriverComparisonService
                 normalizedVerificationStatus,
                 "Unsupported normalized verification status.")
         };
+    }
+
+    private static DriverHealthStatus GetDefaultStatus()
+    {
+        return DriverHealthStatus.NeedsReview;
     }
 
     private static bool IsRecentlyUpdated(

@@ -21,7 +21,7 @@ namespace DriverHealthChecker.App
 
             var deviceProfileDetector = new DeviceProfileDetector();
             var scanReportWriter = new ScanReportWriter();
-            var driverComparisonService = new DriverComparisonService(new DriverStatusEvaluator());
+            var driverComparisonService = new DriverComparisonService();
             var wmiDriverScanner = new WmiDriverScanner();
             var driverSelectionService = new DriverSelectionService(new DriverVersionComparer());
             var driverVerifierRegistry = new DriverVerifierRegistry();
