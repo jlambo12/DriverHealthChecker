@@ -6,7 +6,7 @@ namespace DriverHealthChecker.Tests;
 
 public class DriverComparisonServiceTests
 {
-    private readonly IDriverComparisonService _service = new DriverComparisonService(new DriverStatusEvaluator());
+    private readonly IDriverComparisonService _service = new DriverComparisonService();
 
     [Fact]
     public void ApplyComparison_UpdatedDriver_MarkedAsRecentlyUpdated()
@@ -102,57 +102,15 @@ public class DriverComparisonServiceTests
         Assert.Equal("1.2.3", snapshot["Network|Intel Wi-Fi"].Version);
     }
 
-    [Fact]
-    public void ApplyComparison_WhenFlagOff_KeepsLegacyStatus()
-    {
-        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: false);
-        var drivers = new List<DriverItem>
-        {
-            new()
-            {
-                Name = "Intel Wi-Fi",
-                Category = "Network",
-                Version = "1.0",
-                Date = "not-a-date",
-                VerificationStatus = DriverVerificationStatus.UpToDate
-            }
-        };
-
-        service.ApplyComparison(drivers, isRescan: false, new Dictionary<string, DriverSnapshot>());
-
-        Assert.Equal(DriverHealthStatus.NeedsReview, drivers[0].StatusKind);
-    }
-
-    [Fact]
-    public void ApplyComparison_WhenFlagOn_OverridesStatusFromVerification()
-    {
-        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: true);
-        var drivers = new List<DriverItem>
-        {
-            new()
-            {
-                Name = "Intel Wi-Fi",
-                Category = "Network",
-                Version = "1.0",
-                Date = "not-a-date",
-                VerificationStatus = DriverVerificationStatus.UpdateAvailable
-            }
-        };
-
-        service.ApplyComparison(drivers, isRescan: false, new Dictionary<string, DriverSnapshot>());
-
-        Assert.Equal(DriverHealthStatus.NeedsAttention, drivers[0].StatusKind);
-    }
-
     [Theory]
     [InlineData(DriverVerificationStatus.UpToDate, DriverHealthStatus.UpToDate)]
     [InlineData(DriverVerificationStatus.UpdateAvailable, DriverHealthStatus.NeedsAttention)]
     [InlineData(DriverVerificationStatus.UnableToVerifyReliably, DriverHealthStatus.NeedsReview)]
-    public void ApplyComparison_MapsVerificationStatusWithoutDependingOnLegacyStatus(
+    public void ApplyComparison_VerificationDrivesStatus(
         DriverVerificationStatus verificationStatus,
         DriverHealthStatus expectedStatus)
     {
-        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: true);
+        var service = new DriverComparisonService();
         var drivers = new List<DriverItem>
         {
             new()
@@ -172,9 +130,9 @@ public class DriverComparisonServiceTests
     }
 
     [Fact]
-    public void ApplyComparison_WhenVerificationMissing_FallsBackToLegacyStatus()
+    public void ApplyComparison_WhenVerificationMissing_UsesExplicitSafeDefault()
     {
-        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: true);
+        var service = new DriverComparisonService();
         var drivers = new List<DriverItem>
         {
             new()
@@ -182,7 +140,7 @@ public class DriverComparisonServiceTests
                 Name = "Intel Wi-Fi",
                 Category = "Network",
                 Version = "1.0",
-                Date = "not-a-date"
+                Date = "2026-01-01"
             }
         };
 
@@ -192,9 +150,9 @@ public class DriverComparisonServiceTests
     }
 
     [Fact]
-    public void ApplyComparison_WhenVerificationValueIsInvalid_FallsBackToLegacyStatus()
+    public void ApplyComparison_WhenVerificationValueIsInvalid_UsesExplicitSafeDefault()
     {
-        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: true);
+        var service = new DriverComparisonService();
         var drivers = new List<DriverItem>
         {
             new()
@@ -202,7 +160,7 @@ public class DriverComparisonServiceTests
                 Name = "Intel Wi-Fi",
                 Category = "Network",
                 Version = "1.0",
-                Date = "not-a-date",
+                Date = "2026-01-01",
                 VerificationStatus = (DriverVerificationStatus)999
             }
         };
@@ -215,7 +173,7 @@ public class DriverComparisonServiceTests
     [Fact]
     public void ApplyComparison_WhenUsingDefaultConstructor_UsesVerificationByDefault()
     {
-        var service = new DriverComparisonService(new DriverStatusEvaluator());
+        var service = new DriverComparisonService();
         var drivers = new List<DriverItem>
         {
             new()
@@ -223,7 +181,7 @@ public class DriverComparisonServiceTests
                 Name = "Intel Wi-Fi",
                 Category = "Network",
                 Version = "1.0",
-                Date = "not-a-date",
+                Date = "2026-01-01",
                 VerificationStatus = DriverVerificationStatus.UpToDate
             }
         };
@@ -236,7 +194,7 @@ public class DriverComparisonServiceTests
     [Fact]
     public void ApplyComparison_TracksAggregateDecisionCounters()
     {
-        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: true);
+        var service = new DriverComparisonService();
         var drivers = new List<DriverItem>
         {
             new()
@@ -244,7 +202,7 @@ public class DriverComparisonServiceTests
                 Name = "Driver 1",
                 Category = "Network",
                 Version = "1.0",
-                Date = "not-a-date",
+                Date = "2026-01-01",
                 VerificationStatus = DriverVerificationStatus.UpToDate
             },
             new()
@@ -252,7 +210,7 @@ public class DriverComparisonServiceTests
                 Name = "Driver 2",
                 Category = "Network",
                 Version = "1.0",
-                Date = "not-a-date"
+                Date = "2026-01-01"
             },
             new()
             {
@@ -267,13 +225,13 @@ public class DriverComparisonServiceTests
 
         Assert.Equal(3, service.LastDecisionTotalCount);
         Assert.Equal(1, service.LastDecisionUsedVerificationCount);
-        Assert.Equal(2, service.LastDecisionFallbackCount);
+        Assert.Equal(1, service.LastDecisionDefaultCount);
     }
 
     [Fact]
     public void ApplyComparison_PreservesExistingBehaviorForRescanRecommendationAndVerification()
     {
-        var service = new DriverComparisonService(new DriverStatusEvaluator(), useVerificationForStatus: true);
+        var service = new DriverComparisonService();
         var drivers = new List<DriverItem>
         {
             new()
@@ -289,7 +247,7 @@ public class DriverComparisonServiceTests
                 Name = "Intel Bluetooth",
                 Category = "Network",
                 Version = "1.0",
-                Date = "not-a-date",
+                Date = "2026-01-01",
                 VerificationStatus = DriverVerificationStatus.UpdateAvailable
             },
             new()

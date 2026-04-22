@@ -15,7 +15,7 @@ public class DriverPipelineIntegrationTests
             new OfficialActionResolver(),
             new DriverSelectionService(new DriverVersionComparer()));
 
-        var comparison = new DriverComparisonService(new DriverStatusEvaluator());
+        var comparison = new DriverComparisonService();
 
         var records = new List<ScannedDriverRecord>
         {
