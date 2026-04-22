@@ -32,7 +32,7 @@ internal enum OfficialSupportChannelType
     ManualExplanation
 }
 
-internal enum DriverUpdateActionType
+internal enum UpdateActionType
 {
     OpenApp,
     OpenUrl,
